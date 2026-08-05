@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>书签管理 - Skills Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/bookmarks.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/">发现</a></li>
+        <li><a href="/bookmarks.html" class="active">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container bookmarks-container">
+    <!-- Toolbar -->
+    <div class="bm-toolbar">
+      <div class="bm-profile-selector">
+        <select id="profileSelect" class="bm-select"></select>
+      </div>
+      <div class="bm-search">
+        <input type="text" id="bmSearch" placeholder="搜索书签...">
+      </div>
+      <div class="bm-toolbar-actions">
+        <button class="btn btn-secondary btn-sm" onclick="addBookmark()">+ 书签</button>
+        <button class="btn btn-secondary btn-sm" onclick="addFolder()">+ 文件夹</button>
+        <button class="btn btn-secondary btn-sm" onclick="syncFromChrome()" title="从Chrome重新加载">🔄 同步</button>
+      </div>
+    </div>
+
+    <div class="bm-layout">
+      <!-- Sidebar: Folder Tree -->
+      <aside class="bm-sidebar" id="bmSidebar">
+        <div class="bm-sidebar-header">
+          <span>文件夹</span>
+        </div>
+        <div class="bm-tree" id="bmTree"></div>
+      </aside>
+
+      <!-- Main: All folders expanded -->
+      <section class="bm-main">
+        <div id="bmGrid"></div>
+        <div class="empty-state" id="bmEmpty" style="display:none;">
+          <div class="icon">🔖</div>
+          <h3>未找到书签</h3>
+          <p>没有匹配的书签</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="bmEditModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="bmEditTitle">编辑书签</h3>
+        <button class="modal-close" onclick="closeBmEdit()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>名称</label>
+        <input type="text" id="bmEditName">
+      </div>
+      <div class="form-group" id="bmUrlGroup">
+        <label>网址</label>
+        <input type="text" id="bmEditUrl">
+      </div>
+      <div class="form-group">
+        <label>移动到文件夹</label>
+        <select id="bmEditFolder"></select>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="saveBmEdit()">保存</button>
+        <button class="btn btn-secondary" onclick="closeBmEdit()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Bookmark Modal -->
+  <div class="modal-overlay" id="bmAddModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加书签</h3>
+        <button class="modal-close" onclick="closeBmAdd()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>名称</label>
+        <input type="text" id="bmAddName" placeholder="书签名称">
+      </div>
+      <div class="form-group">
+        <label>网址</label>
+        <input type="text" id="bmAddUrl" placeholder="https://">
+      </div>
+      <div class="form-group">
+        <label>添加到文件夹</label>
+        <select id="bmAddFolder"></select>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="confirmAddBookmark()">添加</button>
+        <button class="btn btn-secondary" onclick="closeBmAdd()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Folder Modal -->
+  <div class="modal-overlay" id="bmAddFolderModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加文件夹</h3>
+        <button class="modal-close" onclick="closeBmAddFolder()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>文件夹名称</label>
+        <input type="text" id="bmFolderName" placeholder="文件夹名称">
+      </div>
+      <div class="form-group">
+        <label>创建在文件夹</label>
+        <select id="bmFolderParent"></select>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <button class="btn btn-primary" onclick="confirmAddFolder()">创建</button>
+        <button class="btn btn-secondary" onclick="closeBmAddFolder()">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/js/bookmarks.js"></script>
+</body>
+</html>

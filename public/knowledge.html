@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - Skills Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/knowledge.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/">发现</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/knowledge.html" class="active">知识</a></li>
+        <li><a href="/admin.html">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>知识库</h1>
+      <p>你的第二大脑，记录与链接所有知识</p>
+    </section>
+
+    <div class="knowledge-grid">
+      <div class="knowledge-card" onclick="openObsidian()">
+        <div class="knowledge-icon">📒</div>
+        <div class="knowledge-name">Obsidian</div>
+        <div class="knowledge-desc">本地 Markdown 笔记库，双向链接构建知识网络</div>
+        <button class="btn btn-primary btn-block">打开 Obsidian</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <script>
+    async function openObsidian() {
+      try {
+        const res = await fetch('/api/workbench/open-obsidian', { method: 'POST' });
+        if (res.ok) showToast('正在打开 Obsidian');
+        else showToast('打开失败，请确认已安装 Obsidian', 'error');
+      } catch {
+        showToast('打开失败', 'error');
+      }
+    }
+
+    function showToast(msg, type) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (type === 'error' ? ' error' : '');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { t.className = 'toast'; }, 2500);
+    }
+  </script>
+</body>
+</html>

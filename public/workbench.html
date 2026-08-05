@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 - Skills Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/workbench.css">
+</head>
+<body>
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/">发现</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html" class="active">工作台</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Reminder Banner -->
+  <div id="reminderBanner" class="reminder-banner"></div>
+
+  <!-- Main Layout -->
+  <div class="wb-container">
+    <!-- Left: Clock + Calendar + Reminders -->
+    <aside class="wb-sidebar">
+      <!-- Clock -->
+      <div class="wb-card wb-clock-card">
+        <div class="wb-clock-time" id="clockTime">--:--</div>
+        <div class="wb-clock-date" id="clockDate">加载中...</div>
+        <div class="wb-clock-week" id="clockWeek"></div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title">日历</span>
+          <div class="wb-cal-nav">
+            <button id="calPrev" class="wb-mini-btn">‹</button>
+            <span id="calMonthLabel">2026年8月</span>
+            <button id="calNext" class="wb-mini-btn">›</button>
+          </div>
+        </div>
+        <div class="wb-cal-weekdays">
+          <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+        </div>
+        <div class="wb-cal-days" id="calDays"></div>
+      </div>
+
+      <!-- Reminders -->
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title">提醒</span>
+          <button class="wb-mini-btn" onclick="showReminderForm()">+</button>
+        </div>
+        <div id="reminderForm" class="wb-reminder-form" style="display:none;">
+          <input type="text" id="reminderTitle" placeholder="提醒内容" class="wb-input">
+          <input type="datetime-local" id="reminderTime" class="wb-input">
+          <label class="wb-checkbox"><input type="checkbox" id="reminderSound" checked> 声音提醒</label>
+          <button class="wb-btn" onclick="addReminder()">添加提醒</button>
+        </div>
+        <div id="reminderList" class="wb-reminder-list"></div>
+      </div>
+    </aside>
+
+    <!-- Center: Today's Plan -->
+    <section class="wb-main">
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title" id="planTitle">今日计划</span>
+          <span class="wb-plan-date" id="planDate"></span>
+          <button class="wb-chip-btn" onclick="addTask()">+ 任务</button>
+        </div>
+        <div id="taskList" class="wb-task-list"></div>
+        <div id="taskInput" class="wb-task-input" style="display:none;">
+          <input type="text" id="newTaskText" placeholder="输入任务，如：完成考研英语30背诵..." class="wb-input" style="flex:1;min-width:200px;">
+          <select id="newTaskPriority" class="wb-input">
+            <option value="high">高</option>
+            <option value="medium" selected>中</option>
+            <option value="low">低</option>
+          </select>
+          <input type="datetime-local" id="newTaskStart" class="wb-input" title="开始时间(可选)">
+          <input type="datetime-local" id="newTaskDeadline" class="wb-input" title="截止时间(可选)">
+          <select id="newTaskProject" class="wb-input"><option value="">关联项目(可选)</option></select>
+          <input type="text" id="newTaskPrompt" placeholder="工作提示词(可选)：扫描后可一键复制到Trae对话开始干活" class="wb-input" style="flex:1 100%;min-width:200px;">
+          <button class="wb-btn" onclick="confirmAddTask()">添加</button>
+          <button class="wb-btn-text" onclick="cancelAddTask()">取消</button>
+        </div>
+      </div>
+
+      <!-- Suggestions -->
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title">建议关注</span>
+          <button class="wb-chip-btn" onclick="scanAllProjects()">🔄 扫描</button>
+        </div>
+        <div id="suggestionList" class="wb-suggestion-list">
+          <div class="wb-empty">点击「扫描」获取项目状态建议</div>
+        </div>
+      </div>
+
+      <!-- Diary -->
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title">日记 · <span id="diaryDate"></span></span>
+          <button class="wb-chip-btn" onclick="saveDiary()">💾 保存</button>
+        </div>
+        <textarea id="diaryContent" class="wb-diary" placeholder="记录今天的关键信息、想法、收获..."></textarea>
+      </div>
+    </section>
+
+    <!-- Right: Projects -->
+    <aside class="wb-projects">
+      <div class="wb-card">
+        <div class="wb-card-header">
+          <span class="wb-card-title">我的项目</span>
+          <button class="wb-chip-btn" onclick="showPathForm()">+ 路径</button>
+        </div>
+        <div id="pathForm" class="wb-path-form" style="display:none;">
+          <input type="text" id="newPath" placeholder="/Users/moon/projects" class="wb-input">
+          <button class="wb-btn" onclick="addPath()">添加</button>
+        </div>
+        <div id="projectList" class="wb-project-list"></div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Reminder Audio -->
+  <audio id="reminderAudio" preload="auto">
+    <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1dJ97rHweg9vmLh6W7qPCgIWHh4ODgYJ+fn5+QkIyEi4uLi4yLjI+Pj4uLi4uLi4qGhoaFhYSEgYB9fX18fHx6eHh4d3Z2dXRzcnJwcHBvb25ubm5samppqaifmJiYl5aWlpaVlZSUkpKSkZGRET8/Pz4+PDw6Ojg3NTQzMTAv" type="audio/wav">
+  </audio>
+
+  <script src="/js/workbench.js"></script>
+</body>
+</html>

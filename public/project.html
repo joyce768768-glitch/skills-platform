@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>项目 - Skills Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/project.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/">发现</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/project.html" class="active">项目</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="project-hero">
+      <h1>我的项目</h1>
+      <p>所有网页项目入口，一键预览</p>
+    </section>
+
+    <!-- Add Form -->
+    <section class="project-add">
+      <div class="project-add-form">
+        <input type="text" id="wpName" class="project-add-input" placeholder="项目名称，如：个人简历">
+        <input type="url" id="wpUrl" class="project-add-input" placeholder="网址，如：https://your-resume.com">
+        <input type="text" id="wpDesc" class="project-add-input" placeholder="描述（可选）">
+        <input type="text" id="wpCategory" class="project-add-input" placeholder="分类，如：简历/作品集/实验" value="简历">
+        <button class="btn btn-primary" onclick="addWebProject()">添加</button>
+      </div>
+    </section>
+
+    <!-- Category Filter -->
+    <div class="project-filter" id="projectFilter"></div>
+
+    <!-- Grid -->
+    <section class="project-grid" id="projectGrid"></section>
+
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">🌐</div>
+      <h3>暂无网页项目</h3>
+      <p>在上方添加你的第一个网页项目入口</p>
+    </div>
+  </main>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>编辑项目</h3>
+        <button class="modal-close" onclick="closeEdit()">✕</button>
+      </div>
+      <div class="form-group">
+        <label>项目名称</label>
+        <input type="text" id="editName" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>网址</label>
+        <input type="url" id="editUrl" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>描述</label>
+        <input type="text" id="editDesc" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>分类</label>
+        <input type="text" id="editCategory" class="form-control">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeEdit()">取消</button>
+        <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/project.js"></script>
+</body>
+</html>

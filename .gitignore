@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Data (contains user config, tokens, personal data, caches)
+data/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store

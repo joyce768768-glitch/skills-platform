@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - Skills Hub</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/">发现</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html" class="active">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="admin-header">
+      <div>
+        <h1>管理后台</h1>
+        <p style="color: var(--text-secondary); margin-top: 4px;">添加、编辑和管理你的 Skills 资源</p>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-primary" onclick="document.getElementById('addSkillModal').classList.add('active')">+ 添加 Skill</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalSkills">0</div>
+        <div class="stat-label">Skills 总数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalCategories">0</div>
+        <div class="stat-label">分类数量</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="totalDownloads">0</div>
+        <div class="stat-label">可下载数</div>
+      </div>
+      <div class="stat-card" id="rateLimitCard">
+        <div class="stat-value" id="rateLimitValue">--</div>
+        <div class="stat-label" id="rateLimitLabel">API 剩余额度</div>
+      </div>
+    </div>
+
+    <!-- GitHub Token Configuration -->
+    <section class="admin-section">
+      <h2>🔑 GitHub API 配置</h2>
+      <div class="category-manager">
+        <div style="background: var(--bg); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+          <strong style="color: var(--text);">为什么要配置 Token？</strong><br>
+          GitHub 未认证 API 限制为 <strong>60 次/小时</strong>，配置 Personal Access Token 后可提升至 <strong>5000 次/小时</strong>，有效避免触发速率限制。<br>
+          <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener" style="color: var(--primary);">点击这里创建 Token →</a>（只需选择 <code>public_repo</code> 权限）
+        </div>
+        <div id="tokenStatus" style="margin-bottom: 12px;"></div>
+        <div style="display: flex; gap: 10px;">
+          <input type="password" id="githubToken" placeholder="粘贴你的 GitHub Personal Access Token" style="flex: 1;">
+          <button class="btn btn-primary" onclick="saveToken()">保存</button>
+          <button class="btn btn-secondary" onclick="clearToken()">清除</button>
+        </div>
+        <div id="rateLimitInfo" style="margin-top: 12px; display: none;"></div>
+      </div>
+    </section>
+
+    <!-- Category Management -->
+    <section class="admin-section">
+      <h2>🏷️ 分类管理</h2>
+      <div class="category-manager">
+        <div class="category-list" id="categoryList">
+        </div>
+        <div class="category-add">
+          <input type="text" id="newCategoryName" placeholder="分类名称" style="flex: 2;">
+          <input type="text" id="newCategoryIcon" placeholder="图标 (emoji)" style="flex: 1; max-width: 120px; text-align: center;">
+          <button class="btn btn-primary" onclick="addCategory()">添加</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Add Skill Form Section -->
+    <section class="admin-section">
+      <h2>➕ 添加 Skill</h2>
+      <div class="add-skill-form">
+        <div class="form-group">
+          <label>GitHub 仓库地址</label>
+          <div style="display: flex; gap: 10px;">
+            <input type="text" id="githubUrl" placeholder="https://github.com/owner/repo">
+            <button class="fetch-btn" onclick="fetchGitHubMetadata()">
+              <span>🔄</span> 抓取信息
+            </button>
+            <button class="btn btn-secondary" onclick="fetchGitHubMetadata(true)" title="强制刷新缓存">🔁</button>
+          </div>
+          <div class="fetch-status" id="fetchStatus" style="display: none;"></div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Skill 名称（英文）</label>
+            <input type="text" id="skillName" placeholder="从 GitHub 自动填充">
+          </div>
+          <div class="form-group">
+            <label>所属分类</label>
+            <select id="skillCategory">
+              <option value="">-- 选择分类 --</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Skill 名称（中文）</label>
+          <input type="text" id="skillNameZh" placeholder="输入中文名称">
+        </div>
+
+        <div class="form-group">
+          <label>描述（英文）</label>
+          <textarea id="skillDescription" placeholder="从 GitHub 自动填充"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>描述（中文）</label>
+          <textarea id="skillDescriptionZh" placeholder="输入中文描述"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>下载链接（可选）</label>
+            <input type="text" id="skillDownloadUrl" placeholder="自动生成或手动填写">
+          </div>
+          <div class="form-group">
+            <label>Tags（逗号分隔）</label>
+            <input type="text" id="skillTopics" placeholder="AI,设计,工具">
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="saveSkill()">保存 Skill</button>
+      </div>
+    </section>
+
+    <!-- Skills List -->
+    <section class="admin-section">
+      <h2>📋 所有 Skills</h2>
+      <div class="admin-skills" id="adminSkillsList">
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit Skill Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>编辑 Skill</h3>
+        <button class="modal-close" onclick="document.getElementById('editModal').classList.remove('active')">✕</button>
+      </div>
+      <div class="form-group">
+        <label>Skill 名称（英文）</label>
+        <input type="text" id="editName">
+      </div>
+      <div class="form-group">
+        <label>Skill 名称（中文）</label>
+        <input type="text" id="editNameZh">
+      </div>
+      <div class="form-group">
+        <label>所属分类</label>
+        <select id="editCategory">
+          <option value="">-- 选择分类 --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>描述（英文）</label>
+        <textarea id="editDescription"></textarea>
+      </div>
+      <div class="form-group">
+        <label>描述（中文）</label>
+        <textarea id="editDescriptionZh"></textarea>
+      </div>
+      <div class="form-group">
+        <label>下载链接</label>
+        <input type="text" id="editDownloadUrl">
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 16px;">
+        <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('editModal').classList.remove('active')">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

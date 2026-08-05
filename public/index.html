@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills Hub - 发现优质技能</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <ul class="nav-links">
+        <li><a href="/" class="active">发现</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html">管理后台</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>发现优质 Skills</h1>
+      <p>精选来自 GitHub 的优秀技能项目，助力你的创作与开发</p>
+    </section>
+
+    <section class="filter-bar">
+      <div class="filter-search">
+        <input type="text" id="searchInput" placeholder="搜索技能名称或描述...">
+      </div>
+      <div class="filter-categories" id="categoryFilters">
+        <!-- Categories will be dynamically inserted -->
+      </div>
+    </section>
+
+    <section class="grid" id="skillsGrid">
+      <!-- Skills will be dynamically inserted -->
+    </section>
+
+    <div class="empty-state" id="emptyState" style="display: none;">
+      <div class="icon">📭</div>
+      <h3>暂无技能</h3>
+      <p>该分类下还没有技能，请前往管理后台添加</p>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

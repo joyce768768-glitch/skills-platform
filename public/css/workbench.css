@@ -1,0 +1,783 @@
+/* Workbench Page Styles */
+.wb-container {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  gap: 16px;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: calc(100vh - 52px);
+}
+
+.wb-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.wb-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.wb-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.wb-plan-date {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.wb-mini-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  padding: 0;
+}
+
+.wb-mini-btn:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Text/pill buttons in card headers (+ 任务 / 🔄 扫描 / + 路径) */
+.wb-chip-btn {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+  border-radius: 980px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.wb-chip-btn:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ===== Clock ===== */
+.wb-clock-card {
+  text-align: center;
+  padding: 20px 16px;
+}
+
+.wb-clock-time {
+  font-size: 42px;
+  font-weight: 200;
+  color: var(--text);
+  letter-spacing: 2px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-clock-date {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.wb-clock-week {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* ===== Calendar ===== */
+.wb-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.wb-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 8px 12px 4px;
+  text-align: center;
+}
+
+.wb-cal-weekdays span {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.wb-cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 4px 12px 12px;
+  gap: 2px;
+}
+
+.wb-cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text);
+  transition: var(--transition);
+  position: relative;
+}
+
+.wb-cal-day:hover {
+  background: var(--bg);
+}
+
+.wb-cal-day.other-month {
+  color: var(--text-tertiary);
+  opacity: 0.4;
+}
+
+.wb-cal-day.today {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.wb-cal-day.selected {
+  background: rgba(0,113,227,0.12);
+  font-weight: 600;
+}
+
+.wb-cal-day.has-plan::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.wb-cal-day.today.has-plan::after {
+  background: #fff;
+}
+
+/* ===== Reminders ===== */
+.wb-reminder-form {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.wb-reminder-list {
+  padding: 8px;
+}
+
+.wb-reminder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.wb-reminder-item:hover {
+  background: var(--bg);
+}
+
+.wb-reminder-item.overdue {
+  background: rgba(255,59,48,0.06);
+}
+
+.wb-reminder-item.done {
+  opacity: 0.5;
+}
+
+.wb-reminder-time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  width: 50px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-reminder-item.overdue .wb-reminder-time {
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+.wb-reminder-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-reminder-item.done .wb-reminder-title {
+  text-decoration: line-through;
+}
+
+.wb-reminder-delete {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.wb-reminder-item:hover .wb-reminder-delete {
+  opacity: 1;
+}
+
+.wb-reminder-delete:hover {
+  color: #ff3b30;
+}
+
+.wb-reminder-item.daily {
+  background: linear-gradient(135deg, rgba(94, 92, 230, 0.08), rgba(0, 113, 227, 0.06));
+  border: 1px solid rgba(94, 92, 230, 0.2);
+}
+
+.wb-reminder-badge {
+  font-size: 10px;
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.1);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* ===== Tasks ===== */
+.wb-task-list {
+  padding: 8px;
+}
+
+.wb-task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.wb-task-item:hover {
+  background: var(--bg);
+}
+
+.wb-task-item.done {
+  opacity: 0.5;
+}
+
+.wb-task-checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.wb-task-item.done .wb-task-checkbox {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.wb-task-item.done .wb-task-checkbox::after {
+  content: '✓';
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wb-task-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-task-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.wb-task-item.done .wb-task-text {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
+
+.wb-task-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 3px;
+}
+
+.wb-task-priority {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.wb-task-priority.high {
+  background: rgba(255,59,48,0.1);
+  color: #ff3b30;
+}
+
+.wb-task-priority.medium {
+  background: rgba(255,149,0,0.1);
+  color: #ff9500;
+}
+
+.wb-task-priority.low {
+  background: rgba(52,199,89,0.1);
+  color: #34c759;
+}
+
+.wb-task-project {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.wb-task-reminder {
+  font-size: 11px;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-task-reminder.overdue {
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+.wb-task-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.wb-task-item:hover .wb-task-actions {
+  opacity: 1;
+}
+
+.wb-task-action {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.wb-task-action:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.wb-task-action.danger:hover {
+  color: #ff3b30;
+}
+
+.wb-task-input {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-light);
+}
+
+.wb-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 13px;
+  outline: none;
+  color: var(--text);
+}
+
+.wb-input:focus {
+  border-color: var(--primary);
+}
+
+.wb-checkbox {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-btn {
+  padding: 6px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.wb-btn:hover {
+  opacity: 0.9;
+}
+
+.wb-btn-text {
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* ===== Suggestions ===== */
+.wb-suggestion-list {
+  padding: 8px;
+}
+
+.wb-suggestion-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.wb-suggestion-item:hover {
+  background: var(--bg);
+}
+
+.wb-suggestion-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wb-suggestion-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-suggestion-text {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.wb-suggestion-project {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.wb-suggestion-item.warning {
+  background: rgba(255,149,0,0.04);
+}
+
+.wb-suggestion-item.danger {
+  background: rgba(255,59,48,0.04);
+}
+
+.wb-suggestion-item.start-work {
+  background: linear-gradient(135deg, rgba(0,113,227,0.08), rgba(0,162,255,0.04));
+  border: 1px solid rgba(0,113,227,0.2);
+  align-items: center;
+}
+
+.wb-start-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.wb-start-btn:hover {
+  background: var(--primary-hover);
+  transform: scale(1.03);
+}
+
+.wb-empty {
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+/* ===== Projects ===== */
+.wb-path-form {
+  padding: 12px 16px;
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.wb-project-list {
+  padding: 8px;
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+}
+
+.wb-project-item {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.wb-project-item:hover {
+  background: var(--bg);
+}
+
+.wb-project-item.scanned {
+  border: 1px solid var(--border-light);
+}
+
+.wb-project-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-project-source {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-tertiary);
+}
+
+.wb-project-info {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wb-project-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.wb-project-tag.warning {
+  color: #ff9500;
+}
+
+.wb-project-tag.danger {
+  color: #ff3b30;
+}
+
+.wb-project-path {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.wb-task-prompt-tag {
+  font-size: 11px;
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.08);
+  padding: 1px 6px;
+  border-radius: 8px;
+  cursor: help;
+}
+
+.wb-task-status {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.wb-task-status.done {
+  background: rgba(52, 199, 89, 0.12);
+  color: #34c759;
+}
+
+.wb-task-status.overdue {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+  font-weight: 600;
+}
+
+.wb-task-status.progress {
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--primary);
+}
+
+/* ===== Diary ===== */
+.wb-diary {
+  width: 100%;
+  min-height: 160px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+  transition: var(--transition);
+}
+
+.wb-diary:focus {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.1);
+}
+
+/* ===== Reminder Banner ===== */
+.reminder-banner {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #ff9500, #ff6b00);
+  color: #fff;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  z-index: 200;
+}
+
+.reminder-banner.active {
+  max-height: 80px;
+}
+
+.reminder-banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 24px;
+}
+
+.reminder-banner-text {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.reminder-banner-btn {
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.reminder-banner-btn:hover {
+  background: rgba(255,255,255,0.35);
+}
+
+.reminder-banner-btn.primary {
+  background: #fff;
+  color: var(--text);
+}
+
+.reminder-banner-btn.primary:hover {
+  background: rgba(255,255,255,0.9);
+}
+
+.reminder-banner-close {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 1024px) {
+  .wb-container {
+    grid-template-columns: 240px 1fr;
+  }
+
+  .wb-projects {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 768px) {
+  .wb-container {
+    grid-template-columns: 1fr;
+  }
+}
