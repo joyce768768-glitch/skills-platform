@@ -12,6 +12,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// 默认首页指向项目页面
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'project.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -980,6 +986,251 @@ app.delete('/api/workbench/projects/:id/prompt', (req, res) => {
   delete wb.prompts[req.params.id];
   writeWorkbench(wb);
   res.json({ ok: true });
+});
+
+// ===== Kanban Board API (项目看板: 构想/待办/执行中/已完成) =====
+const PROMPT_LOG_FILE = path.join(DATA_DIR, 'prompt-log.json');
+
+function readPromptLog() {
+  return readJSON(PROMPT_LOG_FILE);
+}
+
+function writePromptLog(data) {
+  writeJSON(PROMPT_LOG_FILE, data);
+}
+
+if (!fs.existsSync(PROMPT_LOG_FILE)) {
+  writePromptLog([]);
+}
+
+// 获取看板所有项目
+app.get('/api/workbench/kanban', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+  // 同步清理：~/Trae/ 下已删除目录的项目从看板移除
+  const before = wb.kanban.length;
+  wb.kanban = wb.kanban.filter(item => {
+    if (!item.path || item.dirCreated === false) return true; // 无路径或目录从未创建成功，保留
+    return fs.existsSync(item.path); // 目录曾创建成功，检查是否还存在
+  });
+  if (wb.kanban.length !== before) {
+    writeWorkbench(wb);
+  }
+  res.json(wb.kanban);
+});
+
+// 创建构想项目（自动创建目录）
+app.post('/api/workbench/kanban', (req, res) => {
+  const { name, description, prompt, docLink } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: '项目名称不能为空' });
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+
+  const projectName = name.trim();
+  const projectPath = path.join(TRAE_DIR, projectName);
+
+  // 检查重名
+  if (wb.kanban.some(p => p.name === projectName)) {
+    return res.status(400).json({ error: '已存在同名项目' });
+  }
+
+  // 创建目录（失败不阻止创建项目，只标注）
+  let dirCreated = true;
+  try {
+    if (!fs.existsSync(projectPath)) {
+      fs.mkdirSync(projectPath, { recursive: true });
+    }
+  } catch (e) {
+    // Fallback: 子进程 mkdir，应用最新沙箱规则
+    try {
+      execSync(`mkdir -p "${projectPath}"`);
+    } catch (e2) {
+      dirCreated = false;
+      console.warn('创建目录失败(可在系统终端手动创建):', e2.message);
+    }
+  }
+
+  const item = {
+    id: 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name: projectName,
+    description: (description || '').trim(),
+    path: projectPath,
+    status: 'idea',
+    createdAt: new Date().toISOString(),
+    prompt: (prompt || '').trim(),
+    docLink: (docLink || '').trim(),
+    startedAt: null,
+    completedAt: null,
+    dirCreated
+  };
+  wb.kanban.push(item);
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+// 推送项目到 GitHub
+app.post('/api/workbench/kanban/:id/push-github', (req, res) => {
+  const wb = readWorkbench();
+  const item = wb.kanban.find(p => p.id === req.params.id);
+  if (!item || !item.path) return res.status(404).json({ error: '项目不存在或无路径' });
+  try {
+    const { execSync } = require('child_process');
+    const ts = new Date().toLocaleString('zh-CN');
+    const cmd = `cd "${item.path}" && git add -A && git commit -m "update: ${ts}" && git push 2>&1`;
+    const output = execSync(cmd, { encoding: 'utf-8', timeout: 30000 });
+    res.json({ success: true, output });
+  } catch (e) {
+    res.status(500).json({ error: (e.stdout || e.message || '').slice(0, 500) });
+  }
+});
+
+// 打开 ~/Trae/ 目录（macOS Finder）
+app.post('/api/workbench/open-trae', (req, res) => {
+  try {
+    require('child_process').exec(`open "${TRAE_DIR}"`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '打开失败: ' + e.message });
+  }
+});
+
+// 同步 ~/Trae/ 下所有项目目录到看板已完成列
+app.post('/api/workbench/kanban/sync-trae', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+  const existingPaths = new Set(wb.kanban.map(p => p.path));
+  let added = 0;
+  const addedNames = [];
+  try {
+    const entries = fs.readdirSync(TRAE_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = path.join(TRAE_DIR, entry.name);
+      if (existingPaths.has(dirPath)) continue;
+      const item = {
+        id: 'kb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        name: entry.name,
+        description: '',
+        path: dirPath,
+        status: 'done',
+        createdAt: new Date().toISOString(),
+        prompt: '',
+        docLink: '',
+        startedAt: null,
+        completedAt: new Date().toISOString(),
+        dirCreated: true
+      };
+      wb.kanban.push(item);
+      addedNames.push(entry.name);
+      added++;
+    }
+    if (added > 0) writeWorkbench(wb);
+  } catch (e) {
+    return res.status(500).json({ error: '扫描目录失败: ' + e.message });
+  }
+  res.json({ added, addedNames, total: wb.kanban.length });
+});
+
+// 更新看板项目（流转状态、编辑信息）
+app.put('/api/workbench/kanban/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+  const idx = wb.kanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+
+  const item = wb.kanban[idx];
+  const { status, prompt, docLink, description, name } = req.body || {};
+
+  // 检查执行中数量上限
+  if (status === 'doing' && item.status !== 'doing') {
+    const doingCount = wb.kanban.filter(p => p.status === 'doing').length;
+    if (doingCount >= 5) {
+      return res.status(400).json({ error: '执行中项目已达上限(5个)，请先完成部分项目' });
+    }
+  }
+
+  if (name !== undefined) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (prompt !== undefined) item.prompt = prompt.trim();
+  if (docLink !== undefined) item.docLink = docLink.trim();
+  if (status && status !== item.status) {
+    item.status = status;
+    if (status === 'doing' && !item.startedAt) item.startedAt = new Date().toISOString();
+    if (status === 'done') item.completedAt = new Date().toISOString();
+  }
+
+  wb.kanban[idx] = item;
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+// 删除看板项目
+app.delete('/api/workbench/kanban/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+  const idx = wb.kanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+  wb.kanban.splice(idx, 1);
+  writeWorkbench(wb);
+  res.json({ ok: true });
+});
+
+// 开始执行：打开Trae + 粘贴提示词 + 记录日志
+app.post('/api/workbench/kanban/:id/start', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.kanban) wb.kanban = [];
+  const item = wb.kanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+
+  // 检查执行中数量
+  const doingCount = wb.kanban.filter(p => p.status === 'doing').length;
+  if (item.status !== 'doing' && doingCount >= 5) {
+    return res.status(400).json({ error: '执行中项目已达上限(5个)' });
+  }
+
+  // 打开Trae + 粘贴
+  exec(`open -a "Trae CN" "${item.path}"`, (err) => {
+    if (err) console.error('open trae error', err);
+  });
+
+  setTimeout(() => {
+    const copy = exec('pbcopy');
+    copy.stdin.write(item.prompt || '');
+    copy.stdin.end();
+    copy.on('exit', () => {
+      exec(`osascript -e 'tell application "Trae CN" to activate' -e 'delay 1' -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
+        if (err) console.error('paste error', err);
+      });
+    });
+  }, 2500);
+
+  // 更新状态
+  item.status = 'doing';
+  if (!item.startedAt) item.startedAt = new Date().toISOString();
+  writeWorkbench(wb);
+
+  // 记录提示词日志
+  const log = readPromptLog();
+  log.push({
+    id: 'log_' + Date.now(),
+    projectName: item.name,
+    projectId: item.id,
+    prompt: item.prompt || '',
+    docLink: item.docLink || '',
+    time: new Date().toISOString()
+  });
+  // 保留最近200条
+  if (log.length > 200) log.splice(0, log.length - 200);
+  writePromptLog(log);
+
+  res.json({ ok: true, item });
+});
+
+// 获取提示词日志
+app.get('/api/workbench/prompt-log', (req, res) => {
+  const log = readPromptLog();
+  // 倒序返回（最新在前）
+  res.json(log.reverse());
 });
 
 // ===== Backend reminder scanner (rings even when browser is closed/locked) =====

@@ -14,9 +14,10 @@ async function loadWebProjects() {
 }
 
 function renderFilter() {
+  const filter = document.getElementById('projectFilter');
+  if (!filter) return;
   const categories = ['all', ...new Set(webProjects.map(p => p.category))];
   const labels = { all: '全部' };
-  const filter = document.getElementById('projectFilter');
   filter.innerHTML = categories.map(c => {
     const label = labels[c] || c;
     const active = c === currentFilter ? ' active' : '';
@@ -32,6 +33,7 @@ function setFilter(cat) {
 
 function renderGrid() {
   const grid = document.getElementById('projectGrid');
+  if (!grid) return;
   const empty = document.getElementById('emptyState');
 
   const filtered = currentFilter === 'all'
