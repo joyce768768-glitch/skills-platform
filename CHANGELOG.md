@@ -1,8 +1,8 @@
-# Skills Hub - 项目时间线
+# GourdSprite - 项目时间线
 
 ## 项目概览
 
-- **项目名称**：Skills Hub（个人技能管理与工作台平台）
+- **项目名称**：GourdSprite（个人技能管理与多工具项目工作台）
 - **项目起始**：2026 年 8 月 1 日
 - **仓库创建**：2026 年 8 月 5 日
 - **技术栈**：Node.js + Express + 原生 HTML/CSS/JavaScript
@@ -48,7 +48,7 @@
 - 网站 favicon 自动获取
 - 编辑/删除功能
 - 知识页面（Obsidian 启动器）
-- 导航栏统一（发现/书签/工作台/项目/知识/管理后台）
+- 导航栏统一（项目/Skills/书签/工作台/知识/管理后台）
 - Git 初始化并推送到 GitHub 私人仓库
 
 ### 2026-08-06 · v2.0 项目看板系统
@@ -63,16 +63,28 @@
 - **UI 统一**：卡片字段一致（名称+描述+按钮）、深色标题栏、创建按钮等高
 - **导航调整**：项目菜单移到第一位，默认首页指向项目页面
 
+### 2026-08-06 · v3.0 多工具看板 + 平台更名
+- **平台更名**：SkillsHub → GourdSprite
+- **菜单更名**：「发现」→「Skills」，路由从 `/` 改为 `/discover`
+- **⚡ Antigravity 看板**：新增 Antigravity IDE Tab，完整四列看板，目录 `~/Antigravity/`
+- **🟢 VSCode 看板**：新增 Visual Studio Code Tab，目录 `~/VS-Code/`
+- **🤖 豆包看板**：新增豆包对话管理 Tab，支持打开豆包 APP、复制标题搜索、研究摘要
+- **数据隔离**：每个工具看板独立存储（antigravityKanban / vscodeKanban / doubaoKanban）
+- **拖拽隔离**：使用前缀（antigravity: / vscode: / doubao:）防止跨 Tab 误操作
+- **完整 API**：每个工具均有 CRUD + start + open + sync + push-github
+- **Tab 切换修复**：修复 currentTab 初始化顺序导致的 TDZ 错误
+- **自动执行按钮**：修复各 Tab 间自动执行按钮显示/隐藏逻辑
+
 ## 页面架构
 
 | 页面 | URL | 功能 |
 |------|-----|------|
-| 发现 | / | Skills 展示与分类筛选 |
-| 书签 | /bookmarks.html | Chrome 书签双向同步与管理 |
-| 工作台 | /workbench.html | 时钟/日历/任务/扫描/日记/提醒 |
-| 项目 | /project.html | 网页项目入口管理与预览 |
-| 知识 | /knowledge.html | Obsidian 启动器 |
-| 管理后台 | /admin.html | Skills 增删改查与分类配置 |
+| 项目 | `/` (默认首页) | 多工具项目看板(Trae / Antigravity / VSCode / 豆包) |
+| Skills | `/discover` | Skills 展示与分类筛选 |
+| 书签 | `/bookmarks.html` | Chrome 书签双向同步与管理 |
+| 工作台 | `/workbench.html` | 时钟/日历/任务/扫描/日记/提醒 |
+| 知识 | `/knowledge.html` | Obsidian 启动器 |
+| 管理后台 | `/admin.html` | Skills 增删改查与分类配置 |
 
 ## 后端 API
 
@@ -86,7 +98,25 @@
 | /api/workbench/reminders | GET/POST/DELETE | 提醒管理 |
 | /api/workbench/open-project | POST | 打开项目（Trae/Finder） |
 | /api/workbench/open-obsidian | POST | 打开 Obsidian |
+| /api/workbench/open-dir | POST | 打开指定目录(Antigravity/VSCode) |
 | /api/web-projects | GET/POST | 网页项目 CRUD |
 | /api/web-projects/:id | PUT/DELETE | 网页项目更新/删除 |
 | /api/config/github-token | GET/POST/DELETE | GitHub Token 管理 |
-| /api/github/repo | GET | GitHub 仓库信息抓取 |
+| /api/workbench/kanban | GET/POST/PUT/DELETE | Trae 看板 CRUD |
+| /api/workbench/kanban/:id/start | POST | 启动 Trae 项目+粘贴提示词 |
+| /api/workbench/kanban/:id/push-github | POST | 推送 Trae 项目到 GitHub |
+| /api/workbench/kanban/sync-trae | POST | 同步 ~/Trae/ 目录 |
+| /api/workbench/kanban-antigravity | GET/POST/PUT/DELETE | Antigravity 看板 CRUD |
+| /api/workbench/kanban-antigravity/:id/start | POST | 启动 Antigravity 项目 |
+| /api/workbench/kanban-antigravity/:id/open | POST | 打开 Antigravity 项目 |
+| /api/workbench/kanban-antigravity/sync | POST | 同步 ~/Antigravity/ 目录 |
+| /api/workbench/kanban-antigravity/:id/push-github | POST | 推送 Antigravity 项目 |
+| /api/workbench/kanban-vscode | GET/POST/PUT/DELETE | VSCode 看板 CRUD |
+| /api/workbench/kanban-vscode/:id/start | POST | 启动 VSCode 项目 |
+| /api/workbench/kanban-vscode/:id/open | POST | 打开 VSCode 项目 |
+| /api/workbench/kanban-vscode/sync | POST | 同步 ~/VS-Code/ 目录 |
+| /api/workbench/kanban-vscode/:id/push-github | POST | 推送 VSCode 项目 |
+| /api/workbench/kanban-doubao | GET/POST/PUT/DELETE | 豆包看板 CRUD |
+| /api/workbench/kanban-doubao/:id/start | POST | 启动豆包卡片 |
+| /api/workbench/kanban-doubao/:id/open | POST | 打开豆包 APP |
+| /api/workbench/prompt-log | GET | 提示词执行日志 |

@@ -1,4 +1,4 @@
-# Skills Hub - 功能地图
+# GourdSprite - 功能地图
 
 > 一眼看清项目所有能力，方便快速上手和追溯
 
@@ -6,16 +6,16 @@
 
 | 页面 | 地址 | 状态 | 说明 |
 |------|------|------|------|
-| 发现 | `/` | ✅ | Skills 展示、分类筛选、搜索 |
+| 项目 | `/` (默认首页) | ✅ | 多工具项目看板(Trae / Antigravity / VSCode / 豆包) |
+| Skills | `/discover` | ✅ | Skills 展示、分类筛选、搜索 |
 | 书签 | `/bookmarks.html` | ✅ | Chrome 书签双向同步、文件夹平铺 |
 | 工作台 | `/workbench.html` | ✅ | 时钟/日历/任务/日记/提醒/项目扫描 |
-| 项目 | `/project.html` | ✅ | 网页项目入口管理、一键预览 |
 | 知识 | `/knowledge.html` | ✅ | Obsidian 启动器 |
 | 管理后台 | `/admin.html` | ✅ | Skills 增删改查、分类配置 |
 
 ## 📋 功能清单
 
-### 发现页
+### Skills 页
 | 功能 | 状态 | 操作说明 |
 |------|------|----------|
 | 分类筛选 | ✅ | 点击胶囊按钮过滤不同类型 Skills |
@@ -50,15 +50,24 @@
 | 每晚提醒 | ✅ | 21:00 弹窗提醒写明日计划 |
 | 侧边栏提醒 | ✅ | 左侧添加自定义时间提醒 |
 
-### 项目页
+### 项目页（多工具看板）
 | 功能 | 状态 | 操作说明 |
 |------|------|----------|
-| 添加网页项目 | ✅ | 填写名称+网址+分类 |
-| 分类筛选 | ✅ | 按分类胶囊按钮过滤 |
-| 预览 | ✅ | 点「预览」新标签页打开 |
-| 编辑 | ✅ | 点「编辑」弹窗修改 |
-| 删除 | ✅ | 点🗑️确认删除 |
-| 自动图标 | ✅ | 自动获取网站 favicon |
+| Tab 切换 | ✅ | 🛠️ Trae / ⚡ Antigravity / 🟢 VSCode / 🤖 豆包 |
+| 四列看板 | ✅ | 构想 → 待办 → 执行中 → 已完成，拖拽流转 |
+| 创建项目 | ✅ | 弹窗(名称+描述+提示词+文档链接)，自动建目录 |
+| 编辑项目 | ✅ | 点「编辑」修改名称/描述/提示词/文档链接 |
+| 删除项目 | ✅ | 构想列卡片支持🗑️删除 |
+| 在 IDE 打开 | ✅ | 对应工具一键打开项目 |
+| 执行项目 | ✅ | 待办列点「执行」，打开 IDE + 粘贴提示词 |
+| 完成项目 | ✅ | 执行中列点「完成」流转到已完成 |
+| 自动执行 | ✅ | 待办列开关，30秒轮询自动启动有提示词的任务(上限5个) |
+| 目录同步 | ✅ | 扫描本地目录，新项目加入已完成列 |
+| 目录删除同步 | ✅ | 本地删文件夹，看板自动移除卡片 |
+| Push GitHub | ✅ | 已完成列卡片一键 git push |
+| 在豆包打开 | ✅ | 豆包卡片打开 APP + 复制标题供搜索 |
+| 复制提示词 | ✅ | 豆包执行中列复制提示词到剪贴板 |
+| 打开项目目录 | ✅ | 顶部按钮在 Finder 打开对应工具目录 |
 
 ### 知识页
 | 功能 | 状态 | 操作说明 |
@@ -73,6 +82,21 @@
 | 分类管理 | ✅ | 添加/编辑/删除分类 |
 | 批量删除 | ✅ | 勾选删除 |
 | GitHub Token | ✅ | 配置后提升 API 配额 |
+
+## 📊 看板工具对比
+
+| 功能 | 🛠️ Trae | ⚡ Antigravity | 🟢 VSCode | 🤖 豆包 |
+|------|---------|---------------|-----------|---------|
+| 四列看板 | ✅ | ✅ | ✅ | ✅ |
+| 拖拽流转 | ✅ | ✅ | ✅ | ✅ |
+| 创建项目 | ✅ | ✅ | ✅ | ✅(卡片) |
+| 自动建目录 | ✅ ~/Trae/ | ✅ ~/Antigravity/ | ✅ ~/VS-Code/ | ❌ |
+| 目录同步 | ✅ | ✅ | ✅ | ❌ |
+| 打开 IDE | ✅ Trae CN | ✅ Antigravity IDE | ✅ Visual Studio Code | ✅ 豆包 APP |
+| 粘贴提示词 | ✅ | ✅ | ✅ | ✅(复制到剪贴板) |
+| 自动执行 | ✅ | ✅ | ✅ | ❌ |
+| Push GitHub | ✅ | ✅ | ✅ | ❌ |
+| 研究摘要 | ❌ | ❌ | ❌ | ✅ |
 
 ## 🔔 提醒系统
 
@@ -104,7 +128,8 @@ caffeinate -i node server.js
 |------|------|------|
 | `data/config.json` | GitHub Token | 敏感信息，已 gitignore |
 | `data/skills.json` | Skills 列表 | 已 gitignore |
-| `data/workbench.json` | 任务/日记/项目/网页项目 | 已 gitignore |
+| `data/workbench.json` | 任务/日记/看板/网页项目 | 已 gitignore |
+| `data/prompt-log.json` | 提示词执行日志 | 已 gitignore |
 | `data/cache/` | GitHub API 缓存 | 已 gitignore |
 | `data/favicons/` | 网站图标缓存 | 已 gitignore |
 
@@ -113,13 +138,18 @@ caffeinate -i node server.js
 | 功能 | 接口 |
 |------|------|
 | Skills CRUD | `/api/skills`, `/api/skills/:id` |
-| GitHub 抓取 | `/api/github/repo` |
+| GitHub 抓取 | `/api/skills/fetch-github` |
 | 分类管理 | `/api/categories` |
-| 书签同步 | `/api/bookmarks/sync`, `/api/bookmarks/save` |
+| 书签同步 | `/api/bookmarks`, `/api/bookmarks/:id` |
 | 每日计划 | `/api/workbench/plans/:date` |
 | 日记 | `/api/workbench/diary/:date` |
 | 提醒 | `/api/workbench/reminders` |
 | 项目扫描 | `/api/workbench/projects/:id/scan` |
 | 网页项目 | `/api/web-projects` |
-| 系统声音 | `/api/workbench/play-sound` |
-| 打开应用 | `/api/workbench/open-project`, `/api/workbench/open-obsidian` |
+| 系统声音 | `/api/workbench/beep` |
+| 打开应用 | `/api/workbench/open-project`, `/api/workbench/open-obsidian`, `/api/workbench/open-dir` |
+| Trae 看板 | `/api/workbench/kanban`, `/api/workbench/kanban/:id/start`, `/api/workbench/kanban/sync-trae` |
+| Antigravity 看板 | `/api/workbench/kanban-antigravity`, `/:id/start`, `/:id/open`, `/sync`, `/:id/push-github` |
+| VSCode 看板 | `/api/workbench/kanban-vscode`, `/:id/start`, `/:id/open`, `/sync`, `/:id/push-github` |
+| 豆包看板 | `/api/workbench/kanban-doubao`, `/:id/start`, `/:id/open` |
+| 提示词日志 | `/api/workbench/prompt-log` |
