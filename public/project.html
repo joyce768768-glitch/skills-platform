@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>项目 - Skills Hub</title>
+  <title>项目 - GourdSprite</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/project.css">
   <link rel="stylesheet" href="/css/workbench.css">
@@ -11,10 +11,10 @@
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <a href="/" class="nav-logo">Skills<span>Hub</span></a>
+      <a href="/" class="nav-logo">Gourd<span>Sprite</span></a>
       <ul class="nav-links">
         <li><a href="/project.html" class="active">项目</a></li>
-        <li><a href="/">发现</a></li>
+        <li><a href="/discover">Skills</a></li>
         <li><a href="/bookmarks.html">书签</a></li>
         <li><a href="/workbench.html">工作台</a></li>
         <li><a href="/knowledge.html">知识</a></li>
@@ -28,45 +28,165 @@
     <div class="kb-container">
       <div class="kb-header">
         <span class="kb-title">项目看板</span>
-        <div class="kb-header-actions">
-          <button class="wb-chip-btn" onclick="syncTraeProjects()">🔄 同步 Trae 项目</button>
-          <button class="wb-chip-btn" onclick="openTraeDir()">📂 打开trae项目</button>
+        <!-- Tab Switcher -->
+        <div class="kb-tabs">
+          <button class="kb-tab active" data-tab="trae" onclick="switchTab('trae')">🛠️ Trae</button>
+          <button class="kb-tab" data-tab="antigravity" onclick="switchTab('antigravity')">⚡ Antigravity</button>
+          <button class="kb-tab" data-tab="vscode" onclick="switchTab('vscode')">🟢 VSCode</button>
+          <button class="kb-tab" data-tab="doubao" onclick="switchTab('doubao')">🤖 豆包</button>
+        </div>
+        <div class="kb-header-actions" id="kbHeaderActions">
+          <button class="wb-chip-btn" id="syncBtn" onclick="syncCurrentProjects()">🔄 同步项目</button>
+          <button class="wb-chip-btn" id="openDirBtn" onclick="openCurrentDir()">📂 打开项目目录</button>
         </div>
       </div>
 
-      <!-- Four Columns -->
-      <div class="kb-board">
-        <div class="kb-column" data-status="idea">
-          <div class="kb-column-header idea">
-            <span>💡 构想</span>
-            <span class="kb-count" id="kbCountIdea">0</span>
-          </div>
-          <div class="kb-add-card" onclick="showKanbanForm()">+ 创建项目</div>
-          <div class="kb-card-list" id="kbListIdea"></div>
-        </div>
-        <div class="kb-column" data-status="todo">
-          <div class="kb-column-header todo">
-            <span>📋 待办</span>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <button class="kb-auto-btn" id="autoExecBtn" onclick="toggleAutoExecute()">自动执行</button>
-              <span class="kb-count" id="kbCountTodo">0</span>
+      <!-- Trae Tab Panel -->
+      <div class="kb-tab-panel active" id="kbPanelTrae">
+        <div class="kb-board">
+          <div class="kb-column" data-status="idea">
+            <div class="kb-column-header idea">
+              <span>💡 构想</span>
+              <span class="kb-count" id="kbCountIdea">0</span>
             </div>
+            <div class="kb-add-card" onclick="showKanbanForm()">+ 创建项目</div>
+            <div class="kb-card-list" id="kbListIdea"></div>
           </div>
-          <div class="kb-card-list" id="kbListTodo"></div>
+          <div class="kb-column" data-status="todo">
+            <div class="kb-column-header todo">
+              <span>📋 待办</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="kb-auto-btn" id="autoExecBtn" onclick="toggleAutoExecute()">自动执行</button>
+                <span class="kb-count" id="kbCountTodo">0</span>
+              </div>
+            </div>
+            <div class="kb-card-list" id="kbListTodo"></div>
+          </div>
+          <div class="kb-column" data-status="doing">
+            <div class="kb-column-header doing">
+              <span>🚀 执行中</span>
+              <span class="kb-count" id="kbCountDoing">0</span>
+            </div>
+            <div class="kb-card-list" id="kbListDoing"></div>
+          </div>
+          <div class="kb-column" data-status="done">
+            <div class="kb-column-header done">
+              <span>✅ 已完成</span>
+              <span class="kb-count" id="kbCountDone">0</span>
+            </div>
+            <div class="kb-card-list" id="kbListDone"></div>
+          </div>
         </div>
-        <div class="kb-column" data-status="doing">
-          <div class="kb-column-header doing">
-            <span>🚀 执行中</span>
-            <span class="kb-count" id="kbCountDoing">0</span>
+      </div>
+
+      <!-- Doubao Tab Panel -->
+      <div class="kb-tab-panel" id="kbPanelDoubao">
+        <div class="kb-board">
+          <div class="kb-column" data-status="idea">
+            <div class="kb-column-header idea">
+              <span>💡 构想</span>
+              <span class="kb-count" id="dbCountIdea">0</span>
+            </div>
+            <div class="kb-add-card" onclick="showDoubaoForm()">+ 创建卡片</div>
+            <div class="kb-card-list" id="dbListIdea"></div>
           </div>
-          <div class="kb-card-list" id="kbListDoing"></div>
+          <div class="kb-column" data-status="todo">
+            <div class="kb-column-header todo">
+              <span>📋 待办</span>
+              <span class="kb-count" id="dbCountTodo">0</span>
+            </div>
+            <div class="kb-card-list" id="dbListTodo"></div>
+          </div>
+          <div class="kb-column" data-status="doing">
+            <div class="kb-column-header doing">
+              <span>🚀 执行中</span>
+              <span class="kb-count" id="dbCountDoing">0</span>
+            </div>
+            <div class="kb-card-list" id="dbListDoing"></div>
+          </div>
+          <div class="kb-column" data-status="done">
+            <div class="kb-column-header done">
+              <span>✅ 已完成</span>
+              <span class="kb-count" id="dbCountDone">0</span>
+            </div>
+            <div class="kb-card-list" id="dbListDone"></div>
+          </div>
         </div>
-        <div class="kb-column" data-status="done">
-          <div class="kb-column-header done">
-            <span>✅ 已完成</span>
-            <span class="kb-count" id="kbCountDone">0</span>
+      </div>
+
+      <!-- Antigravity Tab Panel -->
+      <div class="kb-tab-panel" id="kbPanelAntigravity">
+        <div class="kb-board">
+          <div class="kb-column" data-status="idea">
+            <div class="kb-column-header idea">
+              <span>💡 构想</span>
+              <span class="kb-count" id="agCountIdea">0</span>
+            </div>
+            <div class="kb-add-card" onclick="showAntigravityForm()">+ 创建项目</div>
+            <div class="kb-card-list" id="agListIdea"></div>
           </div>
-          <div class="kb-card-list" id="kbListDone"></div>
+          <div class="kb-column" data-status="todo">
+            <div class="kb-column-header todo">
+              <span>📋 待办</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="kb-auto-btn" id="autoExecBtnAg" onclick="toggleAutoExecuteAg()" style="display:none;">自动执行</button>
+                <span class="kb-count" id="agCountTodo">0</span>
+              </div>
+            </div>
+            <div class="kb-card-list" id="agListTodo"></div>
+          </div>
+          <div class="kb-column" data-status="doing">
+            <div class="kb-column-header doing">
+              <span>🚀 执行中</span>
+              <span class="kb-count" id="agCountDoing">0</span>
+            </div>
+            <div class="kb-card-list" id="agListDoing"></div>
+          </div>
+          <div class="kb-column" data-status="done">
+            <div class="kb-column-header done">
+              <span>✅ 已完成</span>
+              <span class="kb-count" id="agCountDone">0</span>
+            </div>
+            <div class="kb-card-list" id="agListDone"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VSCode Tab Panel -->
+      <div class="kb-tab-panel" id="kbPanelVscode">
+        <div class="kb-board">
+          <div class="kb-column" data-status="idea">
+            <div class="kb-column-header idea">
+              <span>💡 构想</span>
+              <span class="kb-count" id="vsCountIdea">0</span>
+            </div>
+            <div class="kb-add-card" onclick="showVscodeForm()">+ 创建项目</div>
+            <div class="kb-card-list" id="vsListIdea"></div>
+          </div>
+          <div class="kb-column" data-status="todo">
+            <div class="kb-column-header todo">
+              <span>📋 待办</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="kb-auto-btn" id="autoExecBtnVs" onclick="toggleAutoExecuteVs()" style="display:none;">自动执行</button>
+                <span class="kb-count" id="vsCountTodo">0</span>
+              </div>
+            </div>
+            <div class="kb-card-list" id="vsListTodo"></div>
+          </div>
+          <div class="kb-column" data-status="doing">
+            <div class="kb-column-header doing">
+              <span>🚀 执行中</span>
+              <span class="kb-count" id="vsCountDoing">0</span>
+            </div>
+            <div class="kb-card-list" id="vsListDoing"></div>
+          </div>
+          <div class="kb-column" data-status="done">
+            <div class="kb-column-header done">
+              <span>✅ 已完成</span>
+              <span class="kb-count" id="vsCountDone">0</span>
+            </div>
+            <div class="kb-card-list" id="vsListDone"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -144,6 +264,108 @@
       <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--border-light);">
         <button class="wb-btn-text" onclick="closeProjectModal()">取消</button>
         <button class="wb-btn" onclick="confirmProjectModal()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Doubao Modal (创建/编辑豆包卡片) -->
+  <div id="doubaoModal" class="kb-modal" style="display:none;">
+    <div class="kb-modal-content">
+      <div class="kb-modal-header">
+        <span id="dmTitle">创建豆包卡片</span>
+        <button class="wb-mini-btn" onclick="closeDoubaoModal()">✕</button>
+      </div>
+      <div class="kb-modal-body">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">标题 *</label>
+          <input type="text" id="dmName" class="wb-input" placeholder="如:XX产品研究" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">描述</label>
+          <input type="text" id="dmDesc" class="wb-input" placeholder="简短描述(可选)" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">豆包分享链接</label>
+          <input type="text" id="dmUrl" class="wb-input" placeholder="https://www.doubao.com/share/xxx" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">研究摘要(豆包对话精华)</label>
+          <textarea id="dmSummary" class="wb-input" placeholder="从豆包对话提炼的关键结论、需求、约束(可选)" style="width:100%;min-height:80px;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">Trae 提示词(可选)</label>
+          <textarea id="dmPrompt" class="wb-input" placeholder="若需在 Trae 执行,填写精炼后的指令(避免粘贴整篇对话,烧 token)" style="width:100%;min-height:80px;"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--border-light);">
+        <button class="wb-btn-text" onclick="closeDoubaoModal()">取消</button>
+        <button class="wb-btn" onclick="confirmDoubaoModal()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Antigravity Modal (创建/编辑项目) -->
+  <div id="antigravityModal" class="kb-modal" style="display:none;">
+    <div class="kb-modal-content">
+      <div class="kb-modal-header">
+        <span id="amTitle">创建 Antigravity 项目</span>
+        <button class="wb-mini-btn" onclick="closeAntigravityModal()">✕</button>
+      </div>
+      <div class="kb-modal-body">
+        <input type="hidden" id="amId">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目名称</label>
+          <input type="text" id="amName" class="wb-input" placeholder="项目名称" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目描述</label>
+          <input type="text" id="amDesc" class="wb-input" placeholder="项目描述(可选)" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">工作提示词</label>
+          <textarea id="amPrompt" class="wb-input" placeholder="详细描述要让 Antigravity 做什么..." style="width:100%;min-height:80px;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">云文档链接</label>
+          <input type="text" id="amDocLink" class="wb-input" placeholder="飞书/Notion等需求文档链接(可选)" style="width:100%;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--border-light);">
+        <button class="wb-btn-text" onclick="closeAntigravityModal()">取消</button>
+        <button class="wb-btn" onclick="confirmAntigravityModal()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VSCode Modal (创建/编辑项目) -->
+  <div id="vscodeModal" class="kb-modal" style="display:none;">
+    <div class="kb-modal-content">
+      <div class="kb-modal-header">
+        <span id="vmTitle">创建 VSCode 项目</span>
+        <button class="wb-mini-btn" onclick="closeVscodeModal()">✕</button>
+      </div>
+      <div class="kb-modal-body">
+        <input type="hidden" id="vmId">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目名称</label>
+          <input type="text" id="vmName" class="wb-input" placeholder="项目名称" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目描述</label>
+          <input type="text" id="vmDesc" class="wb-input" placeholder="项目描述(可选)" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">工作提示词</label>
+          <textarea id="vmPrompt" class="wb-input" placeholder="详细描述要让 VSCode 做什么..." style="width:100%;min-height:80px;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">云文档链接</label>
+          <input type="text" id="vmDocLink" class="wb-input" placeholder="飞书/Notion等需求文档链接(可选)" style="width:100%;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--border-light);">
+        <button class="wb-btn-text" onclick="closeVscodeModal()">取消</button>
+        <button class="wb-btn" onclick="confirmVscodeModal()">确认</button>
       </div>
     </div>
   </div>

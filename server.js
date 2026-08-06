@@ -18,6 +18,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'project.html'));
 });
 
+// 发现页（Skills 承载页面）
+app.get('/discover', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -662,6 +667,8 @@ if (!fs.existsSync(WORKBENCH_FILE)) {
 }
 
 const TRAE_DIR = path.join(os.homedir(), 'Trae');
+const ANTIGRAVITY_DIR = path.join(os.homedir(), 'Antigravity');
+const VSCODE_DIR = path.join(os.homedir(), 'VS-Code');
 
 // List projects from ~/Trae/ + custom paths
 app.get('/api/workbench/projects', (req, res) => {
@@ -1226,6 +1233,591 @@ app.post('/api/workbench/kanban/:id/start', (req, res) => {
   res.json({ ok: true, item });
 });
 
+// ===== 豆包看板 API (独立存储,卡片含 doubaoUrl/summary) =====
+
+// 打开豆包桌面 APP(不带 deep link,豆包不支持外部定位对话)
+function openDoubaoApp() {
+  exec('open -a "Doubao"', (err) => {
+    if (err) console.error('open Doubao app error', err);
+  });
+}
+
+// 获取豆包看板所有卡片
+app.get('/api/workbench/kanban-doubao', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+  res.json(wb.doubaoKanban);
+});
+
+// 创建豆包卡片
+app.post('/api/workbench/kanban-doubao', (req, res) => {
+  const { name, description, doubaoUrl, summary, prompt } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: '标题不能为空' });
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+
+  const item = {
+    id: 'db_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name: name.trim(),
+    description: (description || '').trim(),
+    doubaoUrl: (doubaoUrl || '').trim(),
+    summary: (summary || '').trim(),
+    prompt: (prompt || '').trim(),
+    status: 'idea',
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null
+  };
+  wb.doubaoKanban.push(item);
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+// 更新豆包卡片(状态流转/编辑)
+app.put('/api/workbench/kanban-doubao/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+  const idx = wb.doubaoKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '卡片不存在' });
+
+  const item = wb.doubaoKanban[idx];
+  const { status, prompt, doubaoUrl, summary, description, name } = req.body || {};
+
+  // 执行中数量上限(豆包卡片通常不真正占用 Trae,但也限制避免泛滥)
+  if (status === 'doing' && item.status !== 'doing') {
+    const doingCount = wb.doubaoKanban.filter(p => p.status === 'doing').length;
+    if (doingCount >= 5) {
+      return res.status(400).json({ error: '执行中卡片已达上限(5个)' });
+    }
+  }
+
+  if (name !== undefined) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (doubaoUrl !== undefined) item.doubaoUrl = doubaoUrl.trim();
+  if (summary !== undefined) item.summary = summary.trim();
+  if (prompt !== undefined) item.prompt = prompt.trim();
+  if (status && status !== item.status) {
+    item.status = status;
+    if (status === 'doing' && !item.startedAt) item.startedAt = new Date().toISOString();
+    if (status === 'done') item.completedAt = new Date().toISOString();
+  }
+
+  wb.doubaoKanban[idx] = item;
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+// 删除豆包卡片
+app.delete('/api/workbench/kanban-doubao/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+  const idx = wb.doubaoKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '卡片不存在' });
+  wb.doubaoKanban.splice(idx, 1);
+  writeWorkbench(wb);
+  res.json({ ok: true });
+});
+
+// 开始执行豆包卡片:打开豆包链接 + (若有 prompt)复制到剪贴板提示去 Trae 执行
+app.post('/api/workbench/kanban-doubao/:id/start', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+  const item = wb.doubaoKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '卡片不存在' });
+
+  // 检查执行中数量
+  const doingCount = wb.doubaoKanban.filter(p => p.status === 'doing').length;
+  if (item.status !== 'doing' && doingCount >= 5) {
+    return res.status(400).json({ error: '执行中卡片已达上限(5个)' });
+  }
+
+  // 打开豆包桌面 APP
+  openDoubaoApp();
+
+  // 若有 Trae 提示词,复制到剪贴板(不自动打开 Trae,避免误触发;用户手动切换)
+  if (item.prompt) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.prompt);
+      copy.stdin.end();
+    }, 500);
+  }
+
+  // 更新状态
+  item.status = 'doing';
+  if (!item.startedAt) item.startedAt = new Date().toISOString();
+  writeWorkbench(wb);
+
+  res.json({ ok: true, item });
+});
+
+// 仅打开豆包桌面 APP(不改状态,用于"在豆包打开"按钮)
+app.post('/api/workbench/kanban-doubao/:id/open', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.doubaoKanban) wb.doubaoKanban = [];
+  const item = wb.doubaoKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '卡片不存在' });
+  openDoubaoApp();
+  // 复制标题到剪贴板(供在 APP 内搜索对话)
+  if (item.name) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.name);
+      copy.stdin.end();
+    }, 300);
+  }
+  res.json({ ok: true });
+});
+
+// ===== Antigravity IDE 看板 API =====
+
+function openAntigravityApp(projectPath) {
+  if (projectPath) {
+    exec(`open -a "Antigravity IDE" "${projectPath}"`, (err) => {
+      if (err) console.error('open antigravity error', err);
+    });
+  } else {
+    exec('open -a "Antigravity IDE"', (err) => {
+      if (err) console.error('open antigravity error', err);
+    });
+  }
+}
+
+app.get('/api/workbench/kanban-antigravity', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  // 同步清理：已删除目录的项目移除
+  const before = wb.antigravityKanban.length;
+  wb.antigravityKanban = wb.antigravityKanban.filter(item => {
+    if (!item.path || item.dirCreated === false) return true;
+    return fs.existsSync(item.path);
+  });
+  if (wb.antigravityKanban.length !== before) writeWorkbench(wb);
+  res.json(wb.antigravityKanban);
+});
+
+app.post('/api/workbench/kanban-antigravity', (req, res) => {
+  const { name, description, prompt, docLink } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: '项目名称不能为空' });
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+
+  const projectName = name.trim();
+  const projectPath = path.join(ANTIGRAVITY_DIR, projectName);
+
+  if (wb.antigravityKanban.some(p => p.name === projectName)) {
+    return res.status(400).json({ error: '已存在同名项目' });
+  }
+
+  let dirCreated = true;
+  try {
+    if (!fs.existsSync(projectPath)) {
+      fs.mkdirSync(projectPath, { recursive: true });
+    }
+  } catch (e) {
+    try {
+      execSync(`mkdir -p "${projectPath}"`);
+    } catch (e2) {
+      dirCreated = false;
+      console.warn('创建目录失败:', e2.message);
+    }
+  }
+
+  const item = {
+    id: 'ag_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name: projectName,
+    description: (description || '').trim(),
+    path: projectPath,
+    status: 'idea',
+    createdAt: new Date().toISOString(),
+    prompt: (prompt || '').trim(),
+    docLink: (docLink || '').trim(),
+    startedAt: null,
+    completedAt: null,
+    dirCreated
+  };
+  wb.antigravityKanban.push(item);
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.put('/api/workbench/kanban-antigravity/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const idx = wb.antigravityKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+
+  const item = wb.antigravityKanban[idx];
+  const { status, prompt, docLink, description, name } = req.body || {};
+
+  if (status === 'doing' && item.status !== 'doing') {
+    const doingCount = wb.antigravityKanban.filter(p => p.status === 'doing').length;
+    if (doingCount >= 5) {
+      return res.status(400).json({ error: '执行中项目已达上限(5个)' });
+    }
+  }
+
+  if (name !== undefined) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (prompt !== undefined) item.prompt = prompt.trim();
+  if (docLink !== undefined) item.docLink = docLink.trim();
+  if (status && status !== item.status) {
+    item.status = status;
+    if (status === 'doing' && !item.startedAt) item.startedAt = new Date().toISOString();
+    if (status === 'done') item.completedAt = new Date().toISOString();
+  }
+
+  wb.antigravityKanban[idx] = item;
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.delete('/api/workbench/kanban-antigravity/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const idx = wb.antigravityKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+  wb.antigravityKanban.splice(idx, 1);
+  writeWorkbench(wb);
+  res.json({ ok: true });
+});
+
+app.post('/api/workbench/kanban-antigravity/:id/start', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const item = wb.antigravityKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+
+  const doingCount = wb.antigravityKanban.filter(p => p.status === 'doing').length;
+  if (item.status !== 'doing' && doingCount >= 5) {
+    return res.status(400).json({ error: '执行中项目已达上限(5个)' });
+  }
+
+  openAntigravityApp(item.path);
+
+  if (item.prompt) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.prompt);
+      copy.stdin.end();
+      copy.on('exit', () => {
+        exec(`osascript -e 'tell application "Antigravity IDE" to activate' -e 'delay 1' -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
+          if (err) console.error('paste error', err);
+        });
+      });
+    }, 2500);
+  }
+
+  item.status = 'doing';
+  if (!item.startedAt) item.startedAt = new Date().toISOString();
+  writeWorkbench(wb);
+
+  const log = readPromptLog();
+  log.push({
+    id: 'log_' + Date.now(),
+    projectName: item.name,
+    projectId: item.id,
+    prompt: item.prompt || '',
+    docLink: item.docLink || '',
+    time: new Date().toISOString(),
+    tool: 'antigravity'
+  });
+  if (log.length > 200) log.splice(0, log.length - 200);
+  writePromptLog(log);
+
+  res.json({ ok: true, item });
+});
+
+app.post('/api/workbench/kanban-antigravity/:id/open', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const item = wb.antigravityKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+  openAntigravityApp(item.path);
+  res.json({ ok: true });
+});
+
+app.post('/api/workbench/kanban-antigravity/sync', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const existingPaths = new Set(wb.antigravityKanban.map(p => p.path));
+  let added = 0;
+  const addedNames = [];
+  try {
+    if (!fs.existsSync(ANTIGRAVITY_DIR)) return res.json({ added: 0, total: 0 });
+    const entries = fs.readdirSync(ANTIGRAVITY_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = path.join(ANTIGRAVITY_DIR, entry.name);
+      if (existingPaths.has(dirPath)) continue;
+      const item = {
+        id: 'ag_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        name: entry.name,
+        description: '',
+        path: dirPath,
+        status: 'done',
+        createdAt: new Date().toISOString(),
+        prompt: '',
+        docLink: '',
+        startedAt: null,
+        completedAt: new Date().toISOString(),
+        dirCreated: true
+      };
+      wb.antigravityKanban.push(item);
+      addedNames.push(entry.name);
+      added++;
+    }
+    if (added > 0) writeWorkbench(wb);
+  } catch (e) {
+    return res.status(500).json({ error: '扫描目录失败: ' + e.message });
+  }
+  res.json({ added, addedNames, total: wb.antigravityKanban.length });
+});
+
+app.post('/api/workbench/kanban-antigravity/:id/push-github', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.antigravityKanban) wb.antigravityKanban = [];
+  const item = wb.antigravityKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+  try {
+    const output = execSync(`cd "${item.path}" && git push origin main 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    res.json({ success: true, output });
+  } catch (e) {
+    res.status(500).json({ error: (e.stderr || e.message || '').slice(0, 500) });
+  }
+});
+
+// ===== VSCode 看板 API =====
+
+function openVSCodeApp(projectPath) {
+  if (projectPath) {
+    exec(`open -a "Visual Studio Code" "${projectPath}"`, (err) => {
+      if (err) console.error('open vscode error', err);
+    });
+  } else {
+    exec('open -a "Visual Studio Code"', (err) => {
+      if (err) console.error('open vscode error', err);
+    });
+  }
+}
+
+app.get('/api/workbench/kanban-vscode', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const before = wb.vscodeKanban.length;
+  wb.vscodeKanban = wb.vscodeKanban.filter(item => {
+    if (!item.path || item.dirCreated === false) return true;
+    return fs.existsSync(item.path);
+  });
+  if (wb.vscodeKanban.length !== before) writeWorkbench(wb);
+  res.json(wb.vscodeKanban);
+});
+
+app.post('/api/workbench/kanban-vscode', (req, res) => {
+  const { name, description, prompt, docLink } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: '项目名称不能为空' });
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+
+  const projectName = name.trim();
+  const projectPath = path.join(VSCODE_DIR, projectName);
+
+  if (wb.vscodeKanban.some(p => p.name === projectName)) {
+    return res.status(400).json({ error: '已存在同名项目' });
+  }
+
+  let dirCreated = true;
+  try {
+    if (!fs.existsSync(projectPath)) {
+      fs.mkdirSync(projectPath, { recursive: true });
+    }
+  } catch (e) {
+    try {
+      execSync(`mkdir -p "${projectPath}"`);
+    } catch (e2) {
+      dirCreated = false;
+      console.warn('创建目录失败:', e2.message);
+    }
+  }
+
+  const item = {
+    id: 'vs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name: projectName,
+    description: (description || '').trim(),
+    path: projectPath,
+    status: 'idea',
+    createdAt: new Date().toISOString(),
+    prompt: (prompt || '').trim(),
+    docLink: (docLink || '').trim(),
+    startedAt: null,
+    completedAt: null,
+    dirCreated
+  };
+  wb.vscodeKanban.push(item);
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.put('/api/workbench/kanban-vscode/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const idx = wb.vscodeKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+
+  const item = wb.vscodeKanban[idx];
+  const { status, prompt, docLink, description, name } = req.body || {};
+
+  if (status === 'doing' && item.status !== 'doing') {
+    const doingCount = wb.vscodeKanban.filter(p => p.status === 'doing').length;
+    if (doingCount >= 5) {
+      return res.status(400).json({ error: '执行中项目已达上限(5个)' });
+    }
+  }
+
+  if (name !== undefined) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (prompt !== undefined) item.prompt = prompt.trim();
+  if (docLink !== undefined) item.docLink = docLink.trim();
+  if (status && status !== item.status) {
+    item.status = status;
+    if (status === 'doing' && !item.startedAt) item.startedAt = new Date().toISOString();
+    if (status === 'done') item.completedAt = new Date().toISOString();
+  }
+
+  wb.vscodeKanban[idx] = item;
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.delete('/api/workbench/kanban-vscode/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const idx = wb.vscodeKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+  wb.vscodeKanban.splice(idx, 1);
+  writeWorkbench(wb);
+  res.json({ ok: true });
+});
+
+app.post('/api/workbench/kanban-vscode/:id/start', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const item = wb.vscodeKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+
+  const doingCount = wb.vscodeKanban.filter(p => p.status === 'doing').length;
+  if (item.status !== 'doing' && doingCount >= 5) {
+    return res.status(400).json({ error: '执行中项目已达上限(5个)' });
+  }
+
+  openVSCodeApp(item.path);
+
+  if (item.prompt) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.prompt);
+      copy.stdin.end();
+      copy.on('exit', () => {
+        exec(`osascript -e 'tell application "Visual Studio Code" to activate' -e 'delay 1' -e 'tell application "System Events" to keystroke "v" using command down'`, (err) => {
+          if (err) console.error('paste error', err);
+        });
+      });
+    }, 2500);
+  }
+
+  item.status = 'doing';
+  if (!item.startedAt) item.startedAt = new Date().toISOString();
+  writeWorkbench(wb);
+
+  const log = readPromptLog();
+  log.push({
+    id: 'log_' + Date.now(),
+    projectName: item.name,
+    projectId: item.id,
+    prompt: item.prompt || '',
+    docLink: item.docLink || '',
+    time: new Date().toISOString(),
+    tool: 'vscode'
+  });
+  if (log.length > 200) log.splice(0, log.length - 200);
+  writePromptLog(log);
+
+  res.json({ ok: true, item });
+});
+
+app.post('/api/workbench/kanban-vscode/:id/open', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const item = wb.vscodeKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+  openVSCodeApp(item.path);
+  res.json({ ok: true });
+});
+
+app.post('/api/workbench/kanban-vscode/sync', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const existingPaths = new Set(wb.vscodeKanban.map(p => p.path));
+  let added = 0;
+  const addedNames = [];
+  try {
+    if (!fs.existsSync(VSCODE_DIR)) return res.json({ added: 0, total: 0 });
+    const entries = fs.readdirSync(VSCODE_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const dirPath = path.join(VSCODE_DIR, entry.name);
+      if (existingPaths.has(dirPath)) continue;
+      const item = {
+        id: 'vs_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        name: entry.name,
+        description: '',
+        path: dirPath,
+        status: 'done',
+        createdAt: new Date().toISOString(),
+        prompt: '',
+        docLink: '',
+        startedAt: null,
+        completedAt: new Date().toISOString(),
+        dirCreated: true
+      };
+      wb.vscodeKanban.push(item);
+      addedNames.push(entry.name);
+      added++;
+    }
+    if (added > 0) writeWorkbench(wb);
+  } catch (e) {
+    return res.status(500).json({ error: '扫描目录失败: ' + e.message });
+  }
+  res.json({ added, addedNames, total: wb.vscodeKanban.length });
+});
+
+app.post('/api/workbench/kanban-vscode/:id/push-github', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.vscodeKanban) wb.vscodeKanban = [];
+  const item = wb.vscodeKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+  try {
+    const output = execSync(`cd "${item.path}" && git push origin main 2>&1`, { encoding: 'utf-8', timeout: 30000 });
+    res.json({ success: true, output });
+  } catch (e) {
+    res.status(500).json({ error: (e.stderr || e.message || '').slice(0, 500) });
+  }
+});
+
+// 打开指定目录（用于 Antigravity / VSCode 等）
+app.post('/api/workbench/open-dir', (req, res) => {
+  const { dir } = req.body || {};
+  if (!dir) return res.status(400).json({ error: '缺少目录参数' });
+  try {
+    const homeDir = os.homedir();
+    const cleanDir = dir.replace('~/', homeDir + '/');
+    exec(`open "${cleanDir}"`);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: '打开失败: ' + e.message });
+  }
+});
+
 // 获取提示词日志
 app.get('/api/workbench/prompt-log', (req, res) => {
   const log = readPromptLog();
@@ -1284,7 +1876,7 @@ function scanAndRing() {
 setInterval(scanAndRing, 5000);
 
 app.listen(PORT, () => {
-  console.log(`Skills Platform 运行在 http://localhost:${PORT}`);
+  console.log(`GourdSprite 运行在 http://localhost:${PORT}`);
   console.log(`提醒: 后端扫描器已启动，浏览器关闭/锁屏也会响铃。建议用 caffeinate 防睡眠启动:`);
   console.log(`  caffeinate -i node server.js`);
   const config = readConfig();

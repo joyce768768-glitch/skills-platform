@@ -794,6 +794,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .kb-title {
@@ -804,6 +806,61 @@
 .kb-header-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Tab Switcher */
+.kb-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(118, 118, 128, 0.12);
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.kb-tab {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.kb-tab:hover {
+  color: var(--text);
+}
+
+.kb-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Tab Panels */
+.kb-tab-panel {
+  display: none;
+}
+
+.kb-tab-panel.active {
+  display: block;
+}
+
+/* Doubao card summary */
+.kb-card-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(255, 149, 0, 0.08);
+  border-left: 2px solid #ff9500;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .kb-form {
