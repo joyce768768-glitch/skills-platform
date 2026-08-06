@@ -7,6 +7,10 @@ const http = require('http');
 const { URL } = require('url');
 const { Octokit } = require('@octokit/rest');
 
+// 认证与数据库模块
+const db = require('./db');
+const { generateToken, verifyToken, authMiddleware, adminMiddleware } = require('./auth');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1874,6 +1878,205 @@ function scanAndRing() {
 }
 
 setInterval(scanAndRing, 5000);
+
+// ===== 认证 API =====
+
+// 发送验证码（本地模拟，输出到控制台）
+app.post('/api/auth/send-code', (req, res) => {
+  const { phone } = req.body || {};
+  if (!phone || !/^1\d{10}$/.test(phone)) {
+    return res.status(400).json({ error: '请输入正确的手机号' });
+  }
+  // 生成 6 位验证码
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  db.storeVerifyCode(phone, code, 5); // 5 分钟有效
+  // 本地模拟：输出到控制台，并在开发模式下返回给前端
+  console.log(`\n📱 验证码 [${phone}]: ${code}\n`);
+  res.json({ ok: true, code: code, message: '验证码已发送' });
+});
+
+// 验证码登录
+app.post('/api/auth/login', (req, res) => {
+  const { phone, code } = req.body || {};
+  if (!phone || !code) return res.status(400).json({ error: '手机号和验证码不能为空' });
+
+  const stored = db.getVerifyCode(phone);
+  if (!stored) return res.status(400).json({ error: '验证码不存在或已过期' });
+  if (stored.code !== code) return res.status(400).json({ error: '验证码错误' });
+
+  db.deleteVerifyCode(phone);
+
+  // 查找或创建用户
+  let user = db.getUserByPhone(phone);
+  let isNewUser = false;
+  if (!user) {
+    // 新用户注册
+    const userId = 'u_' + Date.now();
+    db.createUser({ id: userId, phone, role: 'user', name: '', status: 'active' });
+    db.createTenant({ id: 't_' + Date.now(), user_id: userId, name: '' });
+    const tenant = db.getTenantByUserId(userId);
+    db.updateUser(userId, { tenant_id: tenant.id });
+    user = db.getUserById(userId);
+    isNewUser = true;
+  }
+
+  if (user.status === 'disabled') {
+    return res.status(403).json({ error: '账号已被禁用' });
+  }
+
+  // 创建会话
+  const sessionId = 's_' + Date.now();
+  db.createSession({ id: sessionId, user_id: user.id, login_at: new Date().toISOString() });
+
+  // 更新最后登录时间
+  db.updateUser(user.id, { last_login: new Date().toISOString() });
+
+  // 生成 JWT
+  const token = generateToken(user.id);
+  // 移除敏感信息
+  const { ...userSafe } = user;
+  res.json({ token, user: userSafe, isNewUser, sessionId });
+});
+
+// 登出
+app.post('/api/auth/logout', (req, res) => {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    const token = auth.slice(7);
+    const payload = verifyToken(token);
+    if (payload) {
+      // 查找用户最近的活跃会话并标记登出
+      const sessions = db.getUserSessions(payload.userId);
+      const activeSession = sessions.find(s => !s.logout_at);
+      if (activeSession) {
+        db.updateSessionLogout(activeSession.id);
+      }
+    }
+  }
+  res.json({ ok: true });
+});
+
+// 获取当前用户信息
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  res.json(req.user);
+});
+
+// 更新当前用户信息（姓名等）
+app.put('/api/auth/me', authMiddleware, (req, res) => {
+  const { name, avatar } = req.body || {};
+  const updates = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (avatar !== undefined) updates.avatar = avatar;
+  db.updateUser(req.user.id, updates);
+  const updated = db.getUserById(req.user.id);
+  res.json(updated);
+});
+
+// ===== 平台管理 API（仅管理员） =====
+
+// 获取所有用户（租户列表）
+app.get('/api/platform/users', authMiddleware, adminMiddleware, (req, res) => {
+  const users = db.getAllUsers();
+  // 附加租户信息
+  const result = users.map(u => {
+    const tenant = db.getTenantByUserId(u.id);
+    return { ...u, tenant: tenant || null };
+  });
+  res.json(result);
+});
+
+// 更新用户（角色/状态）
+app.put('/api/platform/users/:id', authMiddleware, adminMiddleware, (req, res) => {
+  const { role, status, name } = req.body || {};
+  const updates = {};
+  if (role !== undefined) updates.role = role;
+  if (status !== undefined) updates.status = status;
+  if (name !== undefined) updates.name = name.trim();
+  db.updateUser(req.params.id, updates);
+  const updated = db.getUserById(req.params.id);
+  if (!updated) return res.status(404).json({ error: '用户不存在' });
+  res.json(updated);
+});
+
+// 删除用户
+app.delete('/api/platform/users/:id', authMiddleware, adminMiddleware, (req, res) => {
+  const user = db.getUserById(req.params.id);
+  if (!user) return res.status(404).json({ error: '用户不存在' });
+  if (user.role === 'admin') return res.status(400).json({ error: '不能删除管理员账号' });
+  db.db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.params.id);
+  db.db.prepare('DELETE FROM tenants WHERE user_id = ?').run(req.params.id);
+  db.db.prepare('DELETE FROM users WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// 平台指标看板
+app.get('/api/platform/metrics', authMiddleware, adminMiddleware, (req, res) => {
+  const users = db.getAllUsers();
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => u.status === 'active').length;
+  const adminCount = users.filter(u => u.role === 'admin').length;
+
+  // 在线时长统计（所有会话总时长，秒）
+  const sessions = db.db.prepare('SELECT * FROM sessions').all();
+  const totalOnlineDuration = sessions.reduce((sum, s) => {
+    if (s.logout_at) {
+      return sum + (s.duration || 0);
+    } else {
+      // 仍在登录中，计算到当前
+      return sum + Math.floor((Date.now() - new Date(s.login_at).getTime()) / 1000);
+    }
+  }, 0);
+
+  // 今日活跃用户数
+  const today = new Date().toISOString().slice(0, 10);
+  const todayActive = users.filter(u => u.last_login && u.last_login.slice(0, 10) === today).length;
+
+  // 项目数量（从 workbench.json 统计）
+  let projectCount = 0;
+  let skillsCount = 0;
+  try {
+    const wb = readWorkbench();
+    projectCount += (wb.kanban || []).length;
+    projectCount += (wb.antigravityKanban || []).length;
+    projectCount += (wb.vscodeKanban || []).length;
+    projectCount += (wb.doubaoKanban || []).length;
+  } catch {}
+  try {
+    skillsCount = readJSON(SKILLS_FILE).length;
+  } catch {}
+
+  // 最近注册的用户
+  const recentUsers = users
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 5);
+
+  res.json({
+    totalUsers,
+    activeUsers,
+    adminCount,
+    todayActive,
+    totalOnlineDuration,
+    projectCount,
+    skillsCount,
+    recentUsers,
+    sessions: sessions.length
+  });
+});
+
+// 心跳接口（更新在线时长）
+app.post('/api/auth/heartbeat', authMiddleware, (req, res) => {
+  // 查找活跃会话并更新时长
+  const sessions = db.getUserSessions(req.user.id);
+  const active = sessions.find(s => !s.logout_at);
+  if (active) {
+    const duration = Math.floor((Date.now() - new Date(active.login_at).getTime()) / 1000);
+    db.db.prepare('UPDATE sessions SET duration = ? WHERE id = ?').run(duration, active.id);
+    // 更新用户总在线时长
+    const newTotal = (req.user.online_duration || 0) + 30; // 每30秒心跳增加30秒
+    db.updateUser(req.user.id, { online_duration: newTotal });
+  }
+  res.json({ ok: true });
+});
 
 app.listen(PORT, () => {
   console.log(`GourdSprite 运行在 http://localhost:${PORT}`);
