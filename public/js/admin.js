@@ -1,3 +1,6 @@
+// 包裹在 IIFE 中以避免与 app.js / auth.js 在 Skills 页面共载时的全局变量冲突
+// (const API_BASE / let categories 等重复声明会导致整脚本解析失败)
+(function() {
 const API_BASE = '';
 let categories = [];
 let skills = [];
@@ -89,7 +92,7 @@ async function saveToken() {
   }
 }
 
-async function clearToken() {
+async function clearGithubToken() {
   if (!confirm('确定清除 GitHub Token 吗？清除后 API 限制将降为 60 次/小时。')) return;
   try {
     const res = await fetch(`${API_BASE}/api/config/github-token`, { method: 'DELETE' });
@@ -442,4 +445,19 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-init();
+// 暴露到全局，供 HTML 内联 onclick 使用
+window.saveToken = saveToken;
+window.clearGithubToken = clearGithubToken;
+window.addCategory = addCategory;
+window.deleteCategory = deleteCategory;
+window.fetchGitHubMetadata = fetchGitHubMetadata;
+window.saveSkill = saveSkill;
+window.editSkill = editSkill;
+window.saveEdit = saveEdit;
+window.refreshSkill = refreshSkill;
+window.deleteSkill = deleteSkill;
+window.loadAdminSkills = init;
+window.updateStats = updateStats;
+
+// 不再自动 init, 由 openSkillsAdmin() 按需调用
+})();

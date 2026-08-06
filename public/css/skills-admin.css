@@ -1,0 +1,203 @@
+/* Skills 管理入口与面板 - 用于 Skills 发现页 (index.html)
+   复用 style.css 中定义的 CSS 变量 (--primary / --surface / --bg / --border / --text 等) */
+
+/* Skills 管理按钮 (放在 filter-bar 最后) */
+.skills-admin-entry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.skills-admin-entry-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.06);
+}
+
+.skills-admin-entry-btn .skills-admin-entry-icon {
+  font-size: 14px;
+}
+
+/* ===== Skills 管理二级页面 ===== */
+.skills-admin-page {
+  margin-top: 24px;
+  animation: fadeSlideIn 0.3s ease;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.skills-admin-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.skills-admin-page-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+  flex: 1;
+}
+
+.skills-admin-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.skills-admin-back-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ===== 管理面板容器 ===== */
+.skills-admin-panel {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.skills-admin-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.skills-admin-panel-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.skills-admin-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== 面板内按钮 ===== */
+.skills-admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.skills-admin-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.skills-admin-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* ===== 面板内子区块 ===== */
+.skills-admin-section {
+  margin-top: 20px;
+}
+
+.skills-admin-section > h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+/* ===== Skills 列表 (表格化) ===== */
+.skills-admin-table {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.skills-admin-table .admin-skill-item {
+  padding: 14px 18px;
+  transition: var(--transition);
+}
+
+.skills-admin-table .admin-skill-item:hover {
+  background: var(--bg);
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  .skills-admin-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .skills-admin-page-header h2 {
+    flex: none;
+  }
+
+  .skills-admin-panel {
+    padding: 16px;
+  }
+
+  .skills-admin-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .skills-admin-actions {
+    width: 100%;
+  }
+
+  .skills-admin-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}

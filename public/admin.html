@@ -3,8 +3,312 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>管理后台 - GourdSprite</title>
+  <title>平台管理 - GourdSprite</title>
   <link rel="stylesheet" href="/css/style.css">
+  <script src="/js/auth.js"></script>
+  <script>
+    // 路由保护: 未登录在渲染前跳转,避免页面闪烁
+    if (!isLoggedIn()) {
+      window.location.replace('/login.html');
+      document.documentElement.innerHTML = '';
+    }
+  </script>
+  <style>
+    /* 平台管理页样式 */
+    .pf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .pf-header h1 {
+      font-size: 32px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .pf-header p {
+      color: var(--text-secondary);
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    /* Tab 切换器 */
+    .pf-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      padding: 4px;
+      margin-bottom: 28px;
+      width: fit-content;
+    }
+
+    .pf-tab {
+      padding: 9px 20px;
+      border: none;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+
+    .pf-tab:hover {
+      color: var(--text);
+    }
+
+    .pf-tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    /* 指标卡片网格 */
+    .pf-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .pf-metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      transition: var(--transition);
+    }
+
+    .pf-metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+    }
+
+    .pf-metric-icon {
+      font-size: 28px;
+      margin-bottom: 12px;
+    }
+
+    .pf-metric-value {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .pf-metric-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* 最近注册用户 */
+    .pf-section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pf-card {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .pf-recent-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .pf-recent-item:last-child {
+      border-bottom: none;
+    }
+
+    .pf-recent-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .pf-recent-name {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pf-recent-phone {
+      font-size: 13px;
+      color: var(--text-tertiary);
+    }
+
+    .pf-recent-time {
+      font-size: 13px;
+      color: var(--text-secondary);
+      flex-shrink: 0;
+      margin-left: 16px;
+    }
+
+    .pf-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-tertiary);
+      font-size: 14px;
+    }
+
+    /* 用户表格 */
+    .pf-table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      overflow: hidden;
+      overflow-x: auto;
+    }
+
+    .pf-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 800px;
+    }
+
+    .pf-table thead {
+      background: var(--bg);
+    }
+
+    .pf-table th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--border-light);
+      white-space: nowrap;
+    }
+
+    .pf-table td {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--text);
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+
+    .pf-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .pf-table tbody tr:hover {
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .pf-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    /* 徽章 */
+    .pf-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 980px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+
+    .pf-badge-admin {
+      background: rgba(0, 113, 227, 0.1);
+      color: var(--primary);
+    }
+
+    .pf-badge-user {
+      background: var(--bg);
+      color: var(--text-secondary);
+    }
+
+    .pf-badge-active {
+      background: rgba(52, 199, 89, 0.12);
+      color: #248a3d;
+    }
+
+    .pf-badge-disabled {
+      background: rgba(255, 59, 48, 0.1);
+      color: #ff3b30;
+    }
+
+    /* 可编辑姓名 */
+    .pf-editable-name {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: var(--transition);
+      border-radius: 4px;
+      padding: 2px 4px;
+      margin: -2px -4px;
+    }
+
+    .pf-editable-name:hover {
+      background: var(--bg);
+      color: var(--primary);
+    }
+
+    .pf-edit-icon {
+      font-size: 11px;
+      opacity: 0.5;
+    }
+
+    /* 危险按钮 */
+    .pf-btn-danger {
+      background: rgba(255, 59, 48, 0.08);
+      color: #ff3b30;
+      border: 1px solid rgba(255, 59, 48, 0.2);
+    }
+
+    .pf-btn-danger:hover {
+      background: #ff3b30;
+      color: white;
+      border-color: #ff3b30;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .pf-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .pf-header h1 {
+        font-size: 26px;
+      }
+
+      .pf-tabs {
+        width: 100%;
+      }
+
+      .pf-tab {
+        flex: 1;
+        text-align: center;
+      }
+    }
+  </style>
 </head>
 <body>
   <nav class="nav">
@@ -16,186 +320,62 @@
         <li><a href="/bookmarks.html">书签</a></li>
         <li><a href="/workbench.html">工作台</a></li>
         <li><a href="/knowledge.html">知识</a></li>
-        <li><a href="/admin.html" class="active">管理后台</a></li>
+        <li><a href="/admin.html" class="active">平台管理</a></li>
       </ul>
     </div>
   </nav>
 
   <main class="container">
-    <div class="admin-header">
+    <div class="pf-header">
       <div>
-        <h1>管理后台</h1>
-        <p style="color: var(--text-secondary); margin-top: 4px;">添加、编辑和管理你的 Skills 资源</p>
-      </div>
-      <div class="admin-actions">
-        <button class="btn btn-primary" onclick="document.getElementById('addSkillModal').classList.add('active')">+ 添加 Skill</button>
+        <h1>平台管理</h1>
+        <p>查看平台指标与管理租户账号</p>
       </div>
     </div>
 
-    <!-- Stats -->
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-value" id="totalSkills">0</div>
-        <div class="stat-label">Skills 总数</div>
+    <!-- Tab 切换器 -->
+    <div class="pf-tabs">
+      <button class="pf-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 平台看板</button>
+      <button class="pf-tab" data-tab="tenants" onclick="switchTab('tenants')">👥 租户管理</button>
+    </div>
+
+    <!-- Tab 1: 平台看板 -->
+    <div id="tabDashboard">
+      <div class="pf-metrics-grid" id="metricsGrid">
+        <!-- 指标卡片由 JS 渲染 -->
       </div>
-      <div class="stat-card">
-        <div class="stat-value" id="totalCategories">0</div>
-        <div class="stat-label">分类数量</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value" id="totalDownloads">0</div>
-        <div class="stat-label">可下载数</div>
-      </div>
-      <div class="stat-card" id="rateLimitCard">
-        <div class="stat-value" id="rateLimitValue">--</div>
-        <div class="stat-label" id="rateLimitLabel">API 剩余额度</div>
+
+      <h2 class="pf-section-title">🕐 最近注册用户</h2>
+      <div class="pf-card" id="recentUsersList">
+        <!-- 最近用户由 JS 渲染 -->
       </div>
     </div>
 
-    <!-- GitHub Token Configuration -->
-    <section class="admin-section">
-      <h2>🔑 GitHub API 配置</h2>
-      <div class="category-manager">
-        <div style="background: var(--bg); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-          <strong style="color: var(--text);">为什么要配置 Token？</strong><br>
-          GitHub 未认证 API 限制为 <strong>60 次/小时</strong>，配置 Personal Access Token 后可提升至 <strong>5000 次/小时</strong>，有效避免触发速率限制。<br>
-          <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener" style="color: var(--primary);">点击这里创建 Token →</a>（只需选择 <code>public_repo</code> 权限）
-        </div>
-        <div id="tokenStatus" style="margin-bottom: 12px;"></div>
-        <div style="display: flex; gap: 10px;">
-          <input type="password" id="githubToken" placeholder="粘贴你的 GitHub Personal Access Token" style="flex: 1;">
-          <button class="btn btn-primary" onclick="saveToken()">保存</button>
-          <button class="btn btn-secondary" onclick="clearToken()">清除</button>
-        </div>
-        <div id="rateLimitInfo" style="margin-top: 12px; display: none;"></div>
+    <!-- Tab 2: 租户管理 -->
+    <div id="tabTenants" style="display:none;">
+      <div class="pf-table-wrap">
+        <table class="pf-table">
+          <thead>
+            <tr>
+              <th>手机号</th>
+              <th>姓名</th>
+              <th>角色</th>
+              <th>状态</th>
+              <th>在线时长</th>
+              <th>最后登录</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody">
+            <!-- 用户行由 JS 渲染 -->
+          </tbody>
+        </table>
       </div>
-    </section>
-
-    <!-- Category Management -->
-    <section class="admin-section">
-      <h2>🏷️ 分类管理</h2>
-      <div class="category-manager">
-        <div class="category-list" id="categoryList">
-        </div>
-        <div class="category-add">
-          <input type="text" id="newCategoryName" placeholder="分类名称" style="flex: 2;">
-          <input type="text" id="newCategoryIcon" placeholder="图标 (emoji)" style="flex: 1; max-width: 120px; text-align: center;">
-          <button class="btn btn-primary" onclick="addCategory()">添加</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- Add Skill Form Section -->
-    <section class="admin-section">
-      <h2>➕ 添加 Skill</h2>
-      <div class="add-skill-form">
-        <div class="form-group">
-          <label>GitHub 仓库地址</label>
-          <div style="display: flex; gap: 10px;">
-            <input type="text" id="githubUrl" placeholder="https://github.com/owner/repo">
-            <button class="fetch-btn" onclick="fetchGitHubMetadata()">
-              <span>🔄</span> 抓取信息
-            </button>
-            <button class="btn btn-secondary" onclick="fetchGitHubMetadata(true)" title="强制刷新缓存">🔁</button>
-          </div>
-          <div class="fetch-status" id="fetchStatus" style="display: none;"></div>
-        </div>
-
-        <div class="form-divider"></div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>Skill 名称（英文）</label>
-            <input type="text" id="skillName" placeholder="从 GitHub 自动填充">
-          </div>
-          <div class="form-group">
-            <label>所属分类</label>
-            <select id="skillCategory">
-              <option value="">-- 选择分类 --</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Skill 名称（中文）</label>
-          <input type="text" id="skillNameZh" placeholder="输入中文名称">
-        </div>
-
-        <div class="form-group">
-          <label>描述（英文）</label>
-          <textarea id="skillDescription" placeholder="从 GitHub 自动填充"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>描述（中文）</label>
-          <textarea id="skillDescriptionZh" placeholder="输入中文描述"></textarea>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label>下载链接（可选）</label>
-            <input type="text" id="skillDownloadUrl" placeholder="自动生成或手动填写">
-          </div>
-          <div class="form-group">
-            <label>Tags（逗号分隔）</label>
-            <input type="text" id="skillTopics" placeholder="AI,设计,工具">
-          </div>
-        </div>
-
-        <button class="btn btn-primary btn-block" onclick="saveSkill()">保存 Skill</button>
-      </div>
-    </section>
-
-    <!-- Skills List -->
-    <section class="admin-section">
-      <h2>📋 所有 Skills</h2>
-      <div class="admin-skills" id="adminSkillsList">
-      </div>
-    </section>
+    </div>
   </main>
-
-  <!-- Edit Skill Modal -->
-  <div class="modal-overlay" id="editModal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>编辑 Skill</h3>
-        <button class="modal-close" onclick="document.getElementById('editModal').classList.remove('active')">✕</button>
-      </div>
-      <div class="form-group">
-        <label>Skill 名称（英文）</label>
-        <input type="text" id="editName">
-      </div>
-      <div class="form-group">
-        <label>Skill 名称（中文）</label>
-        <input type="text" id="editNameZh">
-      </div>
-      <div class="form-group">
-        <label>所属分类</label>
-        <select id="editCategory">
-          <option value="">-- 选择分类 --</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>描述（英文）</label>
-        <textarea id="editDescription"></textarea>
-      </div>
-      <div class="form-group">
-        <label>描述（中文）</label>
-        <textarea id="editDescriptionZh"></textarea>
-      </div>
-      <div class="form-group">
-        <label>下载链接</label>
-        <input type="text" id="editDownloadUrl">
-      </div>
-      <div style="display: flex; gap: 12px; margin-top: 16px;">
-        <button class="btn btn-primary" onclick="saveEdit()">保存修改</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('editModal').classList.remove('active')">取消</button>
-      </div>
-    </div>
-  </div>
 
   <div class="toast" id="toast"></div>
 
-  <script src="/js/admin.js"></script>
+  <script src="/js/platform.js"></script>
 </body>
 </html>
