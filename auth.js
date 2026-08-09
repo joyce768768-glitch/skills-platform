@@ -3,8 +3,9 @@
 const jwt = require('jsonwebtoken');
 const { getUserById } = require('./db');
 
-// JWT 密钥与有效期
-const JWT_SECRET = '***REMOVED***';
+// JWT 密钥与有效期（从环境变量读取，本地启动时自动生成随机密钥）
+const crypto = require('crypto');
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomUUID();
 const JWT_EXPIRES_IN = '7d';
 
 // 生成 JWT
