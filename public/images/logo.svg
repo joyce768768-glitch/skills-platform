@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40" width="200" height="40">
+  <!-- Gourd mascot -->
+  <g transform="translate(2, 2)">
+    <!-- Stem -->
+    <path d="M14 0 C14 0 18 2 16 6 C15 4 13 3 12 4 C10 6 8 10 10 14" fill="#1d1d1f"/>
+    <!-- Upper body (smaller gourd) -->
+    <ellipse cx="12" cy="18" rx="10" ry="8" fill="#1d1d1f"/>
+    <!-- Lower body (bigger gourd) -->
+    <ellipse cx="12" cy="30" rx="14" ry="10" fill="#1d1d1f"/>
+    <!-- Eyes -->
+    <circle cx="8" cy="17" r="2.2" fill="white"/>
+    <circle cx="16" cy="17" r="2.2" fill="white"/>
+    <!-- Eye highlights -->
+    <circle cx="8.5" cy="16.3" r="0.7" fill="#1d1d1f"/>
+    <circle cx="16.5" cy="16.3" r="0.7" fill="#1d1d1f"/>
+  </g>
+  <!-- Text -->
+  <text x="38" y="28" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif" font-size="22" font-weight="700" fill="#1d1d1f" letter-spacing="-0.5">Gourd<tspan fill="#0071e3">Sprite</tspan></text>
+</svg>

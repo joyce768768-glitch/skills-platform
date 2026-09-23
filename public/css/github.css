@@ -1,0 +1,801 @@
+/* GitHub 涨星日报页面 */
+
+/* ===== 资讯页 Tab 导航 ===== */
+.news-tabs-wrap {
+  position: sticky;
+  top: 52px;
+  z-index: 50;
+  /* 与 header 同款毛玻璃背景,滚动时 tab 行与顶部导航视觉一致 */
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.news-tabs {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.news-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.news-tab {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.news-tab:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.news-tab.active {
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.1);
+}
+
+/* ===== 资讯页 面板切换 ===== */
+.news-panel {
+  display: none;
+}
+
+/* 面板用 block: 子容器(gh-layout)自带布局。
+   grid 会让带 margin:auto + max-width 的子元素各自收缩宽度再居中,导致标题与日期导航左边缘不齐 */
+.news-panel.active {
+  display: block;
+}
+
+/* ===== X / YouTube Feed 通用容器 ===== */
+.news-feed-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.news-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.news-feed-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.news-feed-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.news-feed-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.news-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ===== X 帖子卡片 ===== */
+.x-post-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  transition: var(--transition);
+}
+
+.x-post-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.x-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.x-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.x-name-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.x-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.x-handle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.x-time {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.x-post-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 10px;
+}
+
+.x-post-media {
+  margin-bottom: 10px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.x-post-media img {
+  width: 100%;
+  max-height: 400px;
+  object-fit: cover;
+  display: block;
+}
+
+.x-post-link {
+  font-size: 12px;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.x-post-link:hover {
+  text-decoration: underline;
+}
+
+.x-feed-error,
+.yt-feed-error {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+/* ===== YouTube / B站 视频卡片（缩略图左 + 信息右） ===== */
+.yt-video-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  transition: var(--transition);
+}
+
+.yt-video-card .gh-rank {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.yt-video-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.yt-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 232px;
+  height: 131px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg);
+  display: block;
+  text-decoration: none;
+}
+
+.yt-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* B站缩略图时长徽章 */
+.bili-duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.yt-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.yt-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.yt-title:hover {
+  color: var(--primary);
+}
+
+.yt-channel {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.yt-published {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.yt-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .yt-video-card {
+    flex-direction: column;
+  }
+  .yt-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .news-feed-wrap {
+    padding: 16px;
+  }
+}
+
+.gh-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* ===== 左侧日期导航 ===== */
+.gh-sidebar {
+  position: sticky;
+  top: 76px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* 日报/周报归档切换 */
+.gh-sidebar-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 10px 10px 0;
+}
+
+.gh-sidebar-tab {
+  flex: 1;
+  padding: 7px 4px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.gh-sidebar-tab:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.gh-sidebar-tab.active {
+  background: rgba(0, 113, 227, 0.1);
+  color: var(--primary);
+}
+
+.gh-sidebar-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.gh-sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gh-date-list {
+  list-style: none;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.gh-date-loading,
+.gh-date-empty {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.gh-date-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition);
+  gap: 8px;
+}
+
+.gh-date-item:hover {
+  background: var(--bg);
+}
+
+.gh-date-item.active {
+  background: var(--primary);
+}
+
+.gh-date-item.active .gh-date-name,
+.gh-date-item.active .gh-date-count {
+  color: #fff;
+}
+
+.gh-date-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.gh-date-count {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.gh-date-item.active .gh-date-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===== 右侧内容 ===== */
+.gh-content {
+  min-width: 0;
+}
+
+/* 标题行: 位于内容列顶部,与左侧日期导航顶对齐 */
+.gh-content-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.gh-content-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gh-content-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.gh-content-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.gh-refresh-btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.gh-refresh-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.gh-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gh-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gh-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.gh-cookie-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  background: #fff8e6;
+  border: 1px solid #f0d48a;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: #8a6d1a;
+}
+
+.gh-banner-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid #d4a72c;
+  background: #fff;
+  color: #8a6d1a;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+}
+
+.gh-banner-btn:hover {
+  background: #d4a72c;
+  color: #fff;
+}
+
+.gh-loading,
+.gh-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+}
+
+.gh-repo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ===== 项目卡片 ===== */
+.gh-repo-card {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  transition: var(--transition);
+}
+
+.gh-repo-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.gh-repo-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.gh-rank {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.gh-rank.top3 {
+  background: linear-gradient(135deg, #ff9f0a, #ff6b00);
+  color: #fff;
+}
+
+.gh-owner-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.gh-repo-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.gh-repo-name:hover {
+  color: var(--primary);
+}
+
+.gh-repo-stats {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.gh-stat {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 周报: 一周 star 增幅徽章 */
+.gh-delta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #248a3d;
+  background: rgba(52, 199, 89, 0.12);
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ===== IT之家 AI 资讯卡片 ===== */
+.news-item-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  transition: var(--transition);
+}
+
+.news-item-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.news-item-rank {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.news-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.news-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.4;
+  display: block;
+}
+
+.news-item-title:hover {
+  color: var(--primary);
+}
+
+.news-item-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-top: 6px;
+}
+
+.news-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.news-item-source {
+  font-size: 12px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.news-item-time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.gh-repo-desc {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.gh-repo-detail {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.gh-repo-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.gh-meta-chip {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.gh-topic-chip {
+  font-size: 12px;
+  color: var(--primary);
+  background: rgba(0, 113, 227, 0.08);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.gh-repo-links {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.gh-link-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.gh-link-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* 响应式 */
+@media (max-width: 860px) {
+  .gh-layout {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .gh-sidebar {
+    position: static;
+  }
+
+  .gh-date-list {
+    max-height: 180px;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+  }
+
+  .gh-date-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 120px;
+  }
+
+  .gh-repo-stats {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .gh-repo-links {
+    margin-left: 0;
+  }
+}

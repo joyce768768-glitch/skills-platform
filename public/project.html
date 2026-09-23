@@ -19,8 +19,9 @@
 <body>
   <nav class="nav">
     <div class="nav-inner">
-      <a href="/" class="nav-logo">Gourd<span>Sprite</span></a>
+      <a href="/" class="nav-logo"><span>G</span>ourdSprite</a>
       <ul class="nav-links">
+        <li><a href="/github.html">资讯</a></li>
         <li><a href="/project.html" class="active">项目</a></li>
         <li><a href="/discover">Skills</a></li>
         <li><a href="/bookmarks.html">书签</a></li>
@@ -33,12 +34,13 @@
 
   <main class="container">
     <!-- Kanban Board -->
-    <div class="kb-container">
+    <div class="kb-container" id="kbContainer">
       <div class="kb-header">
         <span class="kb-title">项目看板</span>
         <!-- Tab Switcher -->
         <div class="kb-tabs">
           <button class="kb-tab active" data-tab="trae" onclick="switchTab('trae')">🛠️ Trae</button>
+          <button class="kb-tab" data-tab="deepseek" onclick="switchTab('deepseek')">🟦 DeepSeek</button>
           <button class="kb-tab" data-tab="antigravity" onclick="switchTab('antigravity')">⚡ Antigravity</button>
           <button class="kb-tab" data-tab="vscode" onclick="switchTab('vscode')">🟢 VSCode</button>
           <button class="kb-tab" data-tab="doubao" onclick="switchTab('doubao')">🤖 豆包</button>
@@ -122,6 +124,41 @@
         </div>
       </div>
 
+      <!-- DeepSeek Tab Panel -->
+      <div class="kb-tab-panel" id="kbPanelDeepseek">
+        <div class="kb-board">
+          <div class="kb-column" data-status="idea">
+            <div class="kb-column-header idea">
+              <span>💡 构想</span>
+              <span class="kb-count" id="dsCountIdea">0</span>
+            </div>
+            <div class="kb-add-card" onclick="showDeepSeekForm()">+ 创建项目</div>
+            <div class="kb-card-list" id="dsListIdea"></div>
+          </div>
+          <div class="kb-column" data-status="todo">
+            <div class="kb-column-header todo">
+              <span>📋 待办</span>
+              <span class="kb-count" id="dsCountTodo">0</span>
+            </div>
+            <div class="kb-card-list" id="dsListTodo"></div>
+          </div>
+          <div class="kb-column" data-status="doing">
+            <div class="kb-column-header doing">
+              <span>🚀 执行中</span>
+              <span class="kb-count" id="dsCountDoing">0</span>
+            </div>
+            <div class="kb-card-list" id="dsListDoing"></div>
+          </div>
+          <div class="kb-column" data-status="done">
+            <div class="kb-column-header done">
+              <span>✅ 已完成</span>
+              <span class="kb-count" id="dsCountDone">0</span>
+            </div>
+            <div class="kb-card-list" id="dsListDone"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Antigravity Tab Panel -->
       <div class="kb-tab-panel" id="kbPanelAntigravity">
         <div class="kb-board">
@@ -196,6 +233,150 @@
             <div class="kb-card-list" id="vsListDone"></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Project Detail View (二级页面) -->
+    <div id="detailView" style="display:none;">
+      <div class="detail-header">
+        <button class="detail-back-btn" onclick="closeDetailView()">← 返回</button>
+        <div class="detail-header-info">
+          <span id="detailToolBadge" class="detail-tool-badge"></span>
+          <span id="detailStatusBadge" class="detail-status-badge"></span>
+        </div>
+        <button class="detail-save-btn" id="detailSaveBtn" onclick="saveDetailView()">💾 保存</button>
+      </div>
+      <div class="detail-body">
+        <div class="detail-title-section">
+          <input type="text" id="detailName" class="detail-title-input" placeholder="项目名称">
+          <textarea id="detailDesc" class="detail-desc-input" placeholder="项目描述(一句话概括)"></textarea>
+        </div>
+
+        <div class="detail-tabs">
+          <button class="detail-tab active" data-section="background" onclick="scrollToSection('background')">
+            <span>🎯</span><span>背景</span>
+          </button>
+          <button class="detail-tab" data-section="marketAnalysis" onclick="scrollToSection('marketAnalysis')">
+            <span>📊</span><span>市场分析</span>
+          </button>
+          <button class="detail-tab" data-section="competitiveAnalysis" onclick="scrollToSection('competitiveAnalysis')">
+            <span>⚔️</span><span>竞品分析</span>
+          </button>
+          <button class="detail-tab" data-section="userAnalysis" onclick="scrollToSection('userAnalysis')">
+            <span>👥</span><span>用户分析</span>
+          </button>
+          <button class="detail-tab" data-section="businessModel" onclick="scrollToSection('businessModel')">
+            <span>💰</span><span>商业模式</span>
+          </button>
+          <button class="detail-tab" data-section="specification" onclick="scrollToSection('specification')">
+            <span>📋</span><span>Specification</span>
+          </button>
+        </div>
+
+        <div class="detail-sections">
+          <div class="detail-section" id="section-background">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">🎯</span>
+              <span>背景</span>
+            </div>
+            <textarea id="detailBackground" class="detail-textarea" placeholder="项目背景: 为什么要做这个项目? 解决什么核心问题?"></textarea>
+          </div>
+
+          <div class="detail-section" id="section-marketAnalysis">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">📊</span>
+              <span>市场分析</span>
+            </div>
+            <textarea id="detailMarketAnalysis" class="detail-textarea" placeholder="市场分析: 目标市场规模、增长趋势、用户画像、市场痛点..."></textarea>
+          </div>
+
+          <div class="detail-section" id="section-competitiveAnalysis">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">⚔️</span>
+              <span>竞品分析</span>
+            </div>
+            <textarea id="detailCompetitiveAnalysis" class="detail-textarea" placeholder="竞品分析: 主要竞争对手、产品对比、差异化优势..."></textarea>
+          </div>
+
+          <div class="detail-section" id="section-userAnalysis">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">👥</span>
+              <span>用户分析</span>
+            </div>
+            <textarea id="detailUserAnalysis" class="detail-textarea" placeholder="用户分析: 目标用户画像、使用场景、核心需求、痛点..."></textarea>
+          </div>
+
+          <div class="detail-section" id="section-businessModel">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">💰</span>
+              <span>商业模式设计</span>
+            </div>
+            <textarea id="detailBusinessModel" class="detail-textarea" placeholder="商业模式: 收入模式、成本结构、关键资源、合作伙伴..."></textarea>
+          </div>
+
+          <div class="detail-section" id="section-specification">
+            <div class="detail-section-header">
+              <span class="detail-section-icon">📋</span>
+              <span>Specification</span>
+            </div>
+            <textarea id="detailSpecification" class="detail-textarea" placeholder="产品规格: 功能需求、技术规格、验收标准..."></textarea>
+          </div>
+        </div>
+
+        <div class="detail-meta-section">
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">项目ID</span>
+            <span id="detailId" class="detail-meta-value"></span>
+          </div>
+          <div class="detail-meta-item">
+            <span class="detail-meta-label">创建时间</span>
+            <span id="detailCreatedAt" class="detail-meta-value"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- News View -->
+    <div id="newsView" style="display:none;">
+      <div class="news-header">
+        <div class="news-header-left">
+          <h2 class="news-title">📰 科技资讯</h2>
+          <span class="news-subtitle" id="newsSubtitle">聚合 19 个主流科技媒体，每 30 分钟自动刷新</span>
+        </div>
+        <div class="news-header-actions">
+          <button class="news-btn-refresh" onclick="refreshNews()">🔄 立即刷新</button>
+          <span class="news-last-refresh" id="newsLastRefresh"></span>
+        </div>
+      </div>
+
+      <!-- Tabs: 分类维度 -->
+      <div class="news-tabs-row">
+        <div class="news-tabs-group" id="newsRegionTabs">
+          <button class="news-tab active" data-region="all" onclick="setNewsRegion('all')">🌐 全部</button>
+          <button class="news-tab" data-region="cn" onclick="setNewsRegion('cn')">🇨🇳 国内</button>
+          <button class="news-tab" data-region="en" onclick="setNewsRegion('en')">🌍 国外</button>
+        </div>
+        <div class="news-tabs-group" id="newsSortTabs">
+          <button class="news-tab active" data-sort="latest" onclick="setNewsSort('latest')">🕒 最新</button>
+          <button class="news-tab" data-sort="hot" onclick="setNewsSort('hot')">🔥 最热</button>
+        </div>
+      </div>
+
+      <!-- Source chips filter -->
+      <div class="news-sources-bar" id="newsSourcesBar">
+        <span class="news-sources-label">来源:</span>
+        <button class="news-source-chip active" data-source="all" onclick="setNewsSource('all')">全部</button>
+        <div class="news-sources-list" id="newsSourcesList"></div>
+      </div>
+
+      <!-- News List -->
+      <div class="news-list" id="newsList">
+        <div class="news-loading" id="newsLoading">加载中...</div>
+      </div>
+
+      <!-- Load More -->
+      <div class="news-load-more-wrap" id="newsLoadMoreWrap" style="display:none;">
+        <button class="news-load-more-btn" onclick="loadMoreNews()">加载更多</button>
       </div>
     </div>
   </main>
@@ -378,8 +559,46 @@
     </div>
   </div>
 
+  <!-- DeepSeek Modal (创建/编辑项目) -->
+  <div id="deepseekModal" class="kb-modal" style="display:none;">
+    <div class="kb-modal-content">
+      <div class="kb-modal-header">
+        <span id="dsmTitle">创建 DeepSeek 项目</span>
+        <button class="wb-mini-btn" onclick="closeDeepSeekModal()">✕</button>
+      </div>
+      <div class="kb-modal-body">
+        <input type="hidden" id="dsmId">
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目名称</label>
+          <input type="text" id="dsmName" class="wb-input" placeholder="项目名称" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">项目描述</label>
+          <input type="text" id="dsmDesc" class="wb-input" placeholder="项目描述(可选)" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">DeepSeek 对话分享链接</label>
+          <input type="text" id="dsmUrl" class="wb-input" placeholder="https://chat.deepseek.com/a/xxx 或 chat.deepseek.com/chat/xxx(可选)" style="width:100%;">
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">研究摘要(对话精华)</label>
+          <textarea id="dsmSummary" class="wb-input" placeholder="从 DeepSeek 对话提炼的关键结论、需求、约束(可选)" style="width:100%;min-height:80px;"></textarea>
+        </div>
+        <div style="margin-bottom:16px;">
+          <label style="display:block;font-size:13px;margin-bottom:6px;color:var(--text-secondary);">工作提示词</label>
+          <textarea id="dsmPrompt" class="wb-input" placeholder="要在 DeepSeek 中探索/研究的问题、Prompt(可选,开始时会自动复制到剪贴板)" style="width:100%;min-height:80px;"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 24px;border-top:1px solid var(--border-light);">
+        <button class="wb-btn-text" onclick="closeDeepSeekModal()">取消</button>
+        <button class="wb-btn" onclick="confirmDeepSeekModal()">确认</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/project.js"></script>
   <script src="/js/kanban.js"></script>
+  <script src="/js/news.js"></script>
   <script>
     // 启动心跳保持在线时长
     setInterval(function () {

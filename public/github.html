@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资讯 - GourdSprite</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/github.css?v=20260923e">
+  <script src="/js/auth.js"></script>
+  <script>
+    // 路由保护: 未登录在渲染前跳转,避免页面闪烁
+    if (!isLoggedIn()) {
+      window.location.replace('/login.html');
+      document.documentElement.innerHTML = '';
+    }
+  </script>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="nav-logo"><span>G</span>ourdSprite</a>
+      <ul class="nav-links">
+        <li><a href="/github.html" class="active">资讯</a></li>
+        <li><a href="/project.html">项目</a></li>
+        <li><a href="/discover">Skills</a></li>
+        <li><a href="/bookmarks.html">书签</a></li>
+        <li><a href="/workbench.html">工作台</a></li>
+        <li><a href="/knowledge.html">知识</a></li>
+        <li><a href="/admin.html">平台管理</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- 资讯页面 Tab 导航 -->
+  <div class="news-tabs-wrap">
+    <div class="news-tabs" id="newsTabs">
+      <button class="news-tab active" data-tab="github">🐙 GitHub</button>
+      <button class="news-tab" data-tab="youtube">▶ YouTube</button>
+      <button class="news-tab" data-tab="bili">📺 B站</button>
+      <button class="news-tab" data-tab="aikn">🇨🇳 AI资讯</button>
+      <button class="news-tab" data-tab="huxiu">🐯 虎嗅</button>
+      <button class="news-tab" data-tab="tcai">🌍 TechCrunch</button>
+      <button class="news-tab" data-tab="ars">📡 Ars Technica</button>
+    </div>
+  </div>
+
+  <!-- ===== Tab 1: GitHub 涨星日报 ===== -->
+  <main class="news-panel active" id="newsPanelGithub">
+    <div class="gh-layout">
+      <!-- 左侧: 日报/周报归档 -->
+      <aside class="gh-sidebar" id="ghSidebar">
+        <div class="gh-sidebar-tabs">
+          <button class="gh-sidebar-tab active" data-arch="daily">📅 日报归档</button>
+          <button class="gh-sidebar-tab" data-arch="weekly">📊 周报归档</button>
+        </div>
+        <ul class="gh-date-list" id="ghDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+        <ul class="gh-date-list" id="ghWeekList" style="display:none;">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 项目列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="ghContentTitle">GitHub 涨星日报</h2>
+            <span class="gh-content-subtitle" id="ghContentSubtitle">每日 08:00 自动抓取最近 7 天创建、star 增长最快的 20 个项目</span>
+          </div>
+          <button class="gh-refresh-btn" id="ghRefreshBtn" onclick="refreshTrending()">🔄 立即抓取</button>
+        </div>
+        <div class="gh-repo-list" id="ghRepoList">
+          <div class="gh-loading">正在加载项目...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 2: B站 AI科技视频 (每日08:00抓20条,按日期沉淀) ===== -->
+  <main class="news-panel" id="newsPanelBili">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar" id="biliSidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="biliDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 视频列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="biliContentTitle">B站 · AI科技视频</h2>
+            <span class="gh-content-subtitle" id="biliContentSubtitle">每日 08:00 抓取最近 7 天发布的 AI 科技视频（关键词配额 + 播放量排序）</span>
+          </div>
+          <div class="gh-header-actions">
+            <button class="gh-refresh-btn" id="biliRefreshBtn">🔄 立即抓取</button>
+          </div>
+        </div>
+        <div class="news-feed-list" id="biliFeedList">
+          <div class="gh-loading">正在加载视频...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 3: YouTube (AI 科技访谈) ===== -->
+  <main class="news-panel" id="newsPanelYoutube">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="ytDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 视频列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="ytContentTitle">YouTube · AI 科技访谈</h2>
+            <span class="gh-content-subtitle" id="ytContentSubtitle">每日 08:00 自动抓取 AI 科技频道最新 20 条视频</span>
+          </div>
+          <button class="gh-refresh-btn" id="ytRefreshBtn" onclick="refreshYoutubeDaily()">🔄 立即抓取</button>
+        </div>
+        <div class="news-feed-list" id="youtubeFeedList">
+          <div class="gh-loading">正在加载视频...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 4: IT之家 AI 资讯 (每日08:00抓20条,按日期沉淀) ===== -->
+  <main class="news-panel" id="newsPanelAikn">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar" id="aiknSidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="aiknDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 资讯列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="aiknContentTitle">IT之家 · AI 科技资讯</h2>
+            <span class="gh-content-subtitle" id="aiknContentSubtitle">每日 08:00 自动抓取 IT之家 AI 相关热门 20 条</span>
+          </div>
+          <button class="gh-refresh-btn" id="aiknRefreshBtn">🔄 立即抓取</button>
+        </div>
+        <div class="news-feed-list" id="aiknFeedList">
+          <div class="gh-loading">正在加载资讯...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 5: 虎嗅 科技商业资讯 (官方RSS, 每日08:00抓20条,按日期沉淀) ===== -->
+  <main class="news-panel" id="newsPanelHuxiu">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar" id="huxiuSidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="huxiuDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 资讯列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="huxiuContentTitle">虎嗅 · 前沿科技资讯</h2>
+            <span class="gh-content-subtitle" id="huxiuContentSubtitle">每日 08:00 自动抓取虎嗅「前沿科技」频道最新 20 条</span>
+          </div>
+          <button class="gh-refresh-btn" id="huxiuRefreshBtn">🔄 立即抓取</button>
+        </div>
+        <div class="news-feed-list" id="huxiuFeedList">
+          <div class="gh-loading">正在加载资讯...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 6: 海外AI 资讯 (TechCrunch 官方RSS, 每日08:00抓20条,按日期沉淀) ===== -->
+  <main class="news-panel" id="newsPanelTcai">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar" id="tcaiSidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="tcaiDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 资讯列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="tcaiContentTitle">海外 AI 资讯</h2>
+            <span class="gh-content-subtitle" id="tcaiContentSubtitle">每日 08:00 自动抓取 TechCrunch AI 频道最新 20 条</span>
+          </div>
+          <button class="gh-refresh-btn" id="tcaiRefreshBtn">🔄 立即抓取</button>
+        </div>
+        <div class="news-feed-list" id="tcaiFeedList">
+          <div class="gh-loading">正在加载资讯...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ===== Tab 7: Ars Technica (官方RSS, 每日08:00抓20条,按日期沉淀) ===== -->
+  <main class="news-panel" id="newsPanelArs">
+    <div class="gh-layout">
+      <!-- 左侧: 日期导航 -->
+      <aside class="gh-sidebar" id="arsSidebar">
+        <div class="gh-sidebar-header">
+          <span class="gh-sidebar-title">📅 日报归档</span>
+        </div>
+        <ul class="gh-date-list" id="arsDateList">
+          <li class="gh-date-loading">加载中...</li>
+        </ul>
+      </aside>
+
+      <!-- 右侧: 标题 + 资讯列表 -->
+      <section class="gh-content">
+        <div class="gh-content-header">
+          <div class="gh-content-title-wrap">
+            <h2 class="gh-content-title" id="arsContentTitle">Ars Technica · 科技深度资讯</h2>
+            <span class="gh-content-subtitle" id="arsContentSubtitle">每日 08:00 自动抓取 Ars Technica 官方 RSS 最新 20 条</span>
+          </div>
+          <button class="gh-refresh-btn" id="arsRefreshBtn">🔄 立即抓取</button>
+        </div>
+        <div class="news-feed-list" id="arsFeedList">
+          <div class="gh-loading">正在加载资讯...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/js/github.js?v=20260923f"></script>
+</body>
+</html>

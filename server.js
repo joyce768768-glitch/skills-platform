@@ -27,6 +27,16 @@ app.get('/discover', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// 开发期：HTML/JS/CSS 不缓存，避免浏览器残留旧代码导致点击/样式异常
+app.use((req, res, next) => {
+  if (/\.(html|js|css)(\?|$)/.test(req.url)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = path.join(__dirname, 'data');
@@ -1373,6 +1383,129 @@ app.post('/api/workbench/kanban-doubao/:id/open', (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== DeepSeek 看板 API =====
+
+function openDeepSeekApp(chatLink) {
+  if (chatLink && /^https?:\/\//i.test(chatLink)) {
+    exec(`open "${chatLink}"`, (err) => { if (err) console.error('open deepseek link error', err); });
+    return;
+  }
+  exec('open -a "DeepSeek"', (err) => {
+    if (err) exec('open "https://chat.deepseek.com"', (e2) => { if (e2) console.error('open deepseek error', e2); });
+  });
+}
+
+app.get('/api/workbench/kanban-deepseek', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+  res.json(wb.deepseekKanban);
+});
+
+app.post('/api/workbench/kanban-deepseek', (req, res) => {
+  const { name, description, deepseekUrl, summary, prompt } = req.body || {};
+  if (!name || !name.trim()) return res.status(400).json({ error: '标题不能为空' });
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+
+  const item = {
+    id: 'ds_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    name: name.trim(),
+    description: (description || '').trim(),
+    deepseekUrl: (deepseekUrl || '').trim(),
+    summary: (summary || '').trim(),
+    prompt: (prompt || '').trim(),
+    status: 'idea',
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    completedAt: null
+  };
+  wb.deepseekKanban.push(item);
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.put('/api/workbench/kanban-deepseek/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+  const idx = wb.deepseekKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '卡片不存在' });
+
+  const item = wb.deepseekKanban[idx];
+  const { status, prompt, deepseekUrl, summary, description, name } = req.body || {};
+
+  if (status === 'doing' && item.status !== 'doing') {
+    const doingCount = wb.deepseekKanban.filter(p => p.status === 'doing').length;
+    if (doingCount >= 5) return res.status(400).json({ error: '执行中卡片已达上限(5个)' });
+  }
+
+  if (name !== undefined) item.name = name.trim();
+  if (description !== undefined) item.description = description.trim();
+  if (deepseekUrl !== undefined) item.deepseekUrl = deepseekUrl.trim();
+  if (summary !== undefined) item.summary = summary.trim();
+  if (prompt !== undefined) item.prompt = prompt.trim();
+  if (status && status !== item.status) {
+    item.status = status;
+    if (status === 'doing' && !item.startedAt) item.startedAt = new Date().toISOString();
+    if (status === 'done') item.completedAt = new Date().toISOString();
+  }
+
+  wb.deepseekKanban[idx] = item;
+  writeWorkbench(wb);
+  res.json(item);
+});
+
+app.delete('/api/workbench/kanban-deepseek/:id', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+  const idx = wb.deepseekKanban.findIndex(p => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: '卡片不存在' });
+  wb.deepseekKanban.splice(idx, 1);
+  writeWorkbench(wb);
+  res.json({ ok: true });
+});
+
+app.post('/api/workbench/kanban-deepseek/:id/start', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+  const item = wb.deepseekKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '卡片不存在' });
+
+  const doingCount = wb.deepseekKanban.filter(p => p.status === 'doing').length;
+  if (item.status !== 'doing' && doingCount >= 5) {
+    return res.status(400).json({ error: '执行中卡片已达上限(5个)' });
+  }
+
+  openDeepSeekApp(item.deepseekUrl);
+  if (item.prompt) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.prompt);
+      copy.stdin.end();
+    }, 500);
+  }
+
+  item.status = 'doing';
+  if (!item.startedAt) item.startedAt = new Date().toISOString();
+  writeWorkbench(wb);
+  res.json({ ok: true, item });
+});
+
+app.post('/api/workbench/kanban-deepseek/:id/open', (req, res) => {
+  const wb = readWorkbench();
+  if (!wb.deepseekKanban) wb.deepseekKanban = [];
+  const item = wb.deepseekKanban.find(p => p.id === req.params.id);
+  if (!item) return res.status(404).json({ error: '卡片不存在' });
+  openDeepSeekApp(item.deepseekUrl);
+  if (item.name) {
+    setTimeout(() => {
+      const copy = exec('pbcopy');
+      copy.stdin.write(item.name);
+      copy.stdin.end();
+    }, 300);
+  }
+  res.json({ ok: true });
+});
+
 // ===== Antigravity IDE 看板 API =====
 
 function openAntigravityApp(projectPath) {
@@ -1808,6 +1941,58 @@ app.post('/api/workbench/kanban-vscode/:id/push-github', (req, res) => {
   }
 });
 
+// ===== 项目详情 API (背景/市场分析/竞品分析/用户分析/商业模式/Specification) =====
+const DETAIL_FIELDS = ['background', 'marketAnalysis', 'competitiveAnalysis', 'userAnalysis', 'businessModel', 'specification'];
+
+const KANBAN_TYPES = {
+  trae: { key: 'kanban', prefix: 'kb_' },
+  doubao: { key: 'doubaoKanban', prefix: 'db_' },
+  antigravity: { key: 'antigravityKanban', prefix: 'ag_' },
+  vscode: { key: 'vscodeKanban', prefix: 'vs_' },
+  deepseek: { key: 'deepseekKanban', prefix: 'ds_' }
+};
+
+app.get('/api/workbench/kanban-detail/:tool/:id', (req, res) => {
+  const { tool, id } = req.params;
+  const type = KANBAN_TYPES[tool];
+  if (!type) return res.status(400).json({ error: '未知工具类型' });
+  const wb = readWorkbench();
+  const list = wb[type.key] || [];
+  const item = list.find(p => p.id === id);
+  if (!item) return res.status(404).json({ error: '项目不存在' });
+  const detail = {};
+  DETAIL_FIELDS.forEach(f => detail[f] = item[f] || '');
+  res.json({ ...detail, name: item.name, status: item.status, tool });
+});
+
+app.put('/api/workbench/kanban-detail/:tool/:id', (req, res) => {
+  const { tool, id } = req.params;
+  const type = KANBAN_TYPES[tool];
+  if (!type) return res.status(400).json({ error: '未知工具类型' });
+  const wb = readWorkbench();
+  const list = wb[type.key] || [];
+  const idx = list.findIndex(p => p.id === id);
+  if (idx === -1) return res.status(404).json({ error: '项目不存在' });
+  const item = list[idx];
+  const updates = req.body || {};
+  let updated = false;
+  DETAIL_FIELDS.forEach(f => {
+    if (updates[f] !== undefined) {
+      item[f] = updates[f];
+      updated = true;
+    }
+  });
+  if (updates.name !== undefined) { item.name = updates.name.trim(); updated = true; }
+  if (updates.description !== undefined) { item.description = updates.description.trim(); updated = true; }
+  if (updates.prompt !== undefined) { item.prompt = updates.prompt.trim(); updated = true; }
+  if (updates.docLink !== undefined) { item.docLink = updates.docLink.trim(); updated = true; }
+  if (updated) {
+    list[idx] = item;
+    writeWorkbench(wb);
+  }
+  res.json(item);
+});
+
 // 打开指定目录（用于 Antigravity / VSCode 等）
 app.post('/api/workbench/open-dir', (req, res) => {
   const { dir } = req.body || {};
@@ -2077,6 +2262,1737 @@ app.post('/api/auth/heartbeat', authMiddleware, (req, res) => {
   }
   res.json({ ok: true });
 });
+
+// ==================== 资讯 RSS 模块 ====================
+const Parser = require('rss-parser');
+const rssParser = new Parser({
+  timeout: 30000,
+  maxRedirects: 5,
+  headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 GourdSprite/1.0' }
+});
+
+const NEWS_CACHE_FILE = path.join(CACHE_DIR, 'news.json');
+const NEWS_REFRESH_INTERVAL = 30 * 60 * 1000; // 30分钟
+
+const RSS_SOURCES = [
+  // ===== 国内科技 =====
+  { id: '36kr', name: '36氪', region: 'cn', category: '创投科技', url: 'https://rsshub.app/36kr/newsflashes' },
+  { id: 'huxiu', name: '虎嗅', region: 'cn', category: '商业科技', url: 'https://rsshub.app/huxiu/article' },
+  { id: 'sspai', name: '少数派', region: 'cn', category: '数字生活', url: 'https://sspai.com/feed' },
+  { id: 'infoq-cn', name: 'InfoQ 中文', region: 'cn', category: '技术工程', url: 'https://www.infoq.cn/feed' },
+  { id: 'ruanyifeng', name: '阮一峰的网络日志', region: 'cn', category: '科技周刊', url: 'https://www.ruanyifeng.com/blog/atom.xml' },
+  { id: 'v2ex', name: 'V2EX', region: 'cn', category: '社区热帖', url: 'https://www.v2ex.com/index.xml' },
+  { id: 'juejin', name: '稀土掘金', region: 'cn', category: '开发者', url: 'https://rsshub.app/juejin/trending/0' },
+  { id: 'segmentfault', name: '思否', region: 'cn', category: '开发者', url: 'https://segmentfault.com/feeds' },
+  { id: 'ithome', name: 'IT之家', region: 'cn', category: '数码科技', url: 'https://www.ithome.com/rss/' },
+  { id: 'coolshell', name: '酷壳 CoolShell', region: 'cn', category: '技术深度', url: 'https://coolshell.cn/feed' },
+  // ===== 国外科技 =====
+  { id: 'hackernews', name: 'Hacker News', region: 'en', category: '技术社区', url: 'https://hnrss.org/frontpage' },
+  { id: 'techcrunch', name: 'TechCrunch', region: 'en', category: '创投科技', url: 'https://techcrunch.com/feed/' },
+  { id: 'theverge', name: 'The Verge', region: 'en', category: '消费电子', url: 'https://www.theverge.com/rss/index.xml' },
+  { id: 'arstechnica', name: 'Ars Technica', region: 'en', category: '深度科技', url: 'https://feeds.arstechnica.com/arstechnica/index' },
+  { id: 'devto', name: 'Dev.to', region: 'en', category: '开发者社区', url: 'https://dev.to/feed' },
+  { id: 'github-blog', name: 'GitHub Blog', region: 'en', category: '平台动态', url: 'https://github.blog/feed/' },
+  { id: 'smashing', name: 'Smashing Magazine', region: 'en', category: '设计前端', url: 'https://www.smashingmagazine.com/feed/' },
+  { id: 'slashdot', name: 'Slashdot', region: 'en', category: '极客科技', url: 'https://rss.slashdot.org/Slashdot/slashdotMain' },
+  { id: 'venturebeat', name: 'VentureBeat', region: 'en', category: 'AI/创投', url: 'https://venturebeat.com/feed/' },
+];
+
+let newsCache = { items: [], lastRefresh: 0, sources: [] };
+
+function readNewsCache() {
+  try {
+    if (fs.existsSync(NEWS_CACHE_FILE)) {
+      newsCache = JSON.parse(fs.readFileSync(NEWS_CACHE_FILE, 'utf-8'));
+    }
+  } catch (e) { console.warn('读取资讯缓存失败:', e.message); }
+}
+
+function writeNewsCache() {
+  try { fs.writeFileSync(NEWS_CACHE_FILE, JSON.stringify(newsCache, null, 2)); }
+  catch (e) { console.warn('写入资讯缓存失败:', e.message); }
+}
+
+function normalizeItem(source, raw) {
+  const pubDate = raw.isoDate || raw.pubDate || raw.date || Date.now();
+  const publishedAt = new Date(pubDate).getTime();
+  const title = (raw.title || '').trim();
+  const link = raw.link || raw.guid || '';
+  let content = raw.contentSnippet || raw.summary || raw.content || '';
+  if (typeof content === 'string') content = content.replace(/<[^>]+>/g, '').trim().slice(0, 500);
+  const id = `${source.id}:${Buffer.from(link || title).toString('base64').slice(0, 32)}`;
+  return {
+    id,
+    title,
+    link,
+    summary: content,
+    sourceId: source.id,
+    sourceName: source.name,
+    region: source.region,
+    category: source.category,
+    author: raw.creator || raw.author || raw['dc:creator'] || '',
+    publishedAt: isNaN(publishedAt) ? Date.now() : publishedAt,
+    publishedAtStr: new Date(isNaN(publishedAt) ? Date.now() : publishedAt).toISOString(),
+    hotScore: 0,
+  };
+}
+
+async function fetchSourceRaw(url, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+    try {
+      const parsed = new URL(url);
+      const lib = parsed.protocol === 'https:' ? https : http;
+      const req = lib.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 GourdSprite/1.0',
+          'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+        },
+        timeout: timeoutMs,
+      }, (res) => {
+        clearTimeout(timer);
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          // follow one redirect manually
+          fetchSourceRaw(new URL(res.headers.location, url).toString(), timeoutMs).then(resolve).catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      });
+      req.on('error', (e) => { clearTimeout(timer); reject(e); });
+      req.on('timeout', () => { req.destroy(); clearTimeout(timer); reject(new Error('Request timed out')); });
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
+  });
+}
+
+function cleanXmlBody(xml) {
+  if (!xml || typeof xml !== 'string') return xml;
+  // Replace lone & (not part of &entity; pattern) with &amp; inside attribute values
+  // Handle common issue: attributes with unescaped & like href="foo?a=1&b=2"
+  return xml
+    .replace(/&(?!(#[0-9]{1,6}|#x[0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,20});)/g, '&amp;')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+}
+
+async function fetchSource(source) {
+  try {
+    const raw = await fetchSourceRaw(source.url);
+    const cleaned = cleanXmlBody(raw);
+    const feed = await rssParser.parseString(cleaned);
+    const items = (feed.items || []).map(it => normalizeItem(source, it));
+    source.lastFetch = Date.now();
+    source.lastError = null;
+    return { source, items, error: null };
+  } catch (e) {
+    source.lastFetch = Date.now();
+    source.lastError = e.message;
+    console.warn(`[RSS] ${source.name} 拉取失败: ${e.message}`);
+    return { source, items: [], error: e.message };
+  }
+}
+
+async function refreshNews(force = false) {
+  const now = Date.now();
+  if (!force && now - newsCache.lastRefresh < NEWS_REFRESH_INTERVAL && newsCache.items.length > 0) {
+    return newsCache;
+  }
+  console.log(`[资讯] 开始刷新 ${RSS_SOURCES.length} 个 RSS 源...`);
+  // 限流并发（最多同时请求 5 个源），避免网络拥堵导致超时
+  const results = [];
+  const concurrency = 5;
+  for (let i = 0; i < RSS_SOURCES.length; i += concurrency) {
+    const batch = RSS_SOURCES.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map(s => fetchSource(s)));
+    results.push(...batchResults);
+  }
+  let allItems = [];
+  const sourceStatus = results.map(r => ({
+    id: r.source.id, name: r.source.name, region: r.source.region,
+    category: r.source.category, count: r.items.length, error: r.error, lastFetch: r.source.lastFetch
+  }));
+  results.forEach(r => { allItems = allItems.concat(r.items); });
+  // 去重（按 link 或 title+source）
+  const seen = new Set();
+  allItems = allItems.filter(it => {
+    if (!it.title && !it.link) return false;
+    const key = it.link ? `l:${it.link}` : `t:${it.sourceId}:${it.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  // 计算热度分（发布时间 + 源权重简单估算）
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const sourceWeight = { v2ex: 3, hackernews: 5, '36kr': 2, techcrunch: 2 };
+  allItems.forEach(it => {
+    const age = Math.max(1, (now - it.publishedAt));
+    const recency = 1 - Math.min(1, age / weekMs);
+    const weight = sourceWeight[it.sourceId] || 1;
+    it.hotScore = Math.round((recency * 100 + Math.random() * 5) * weight);
+  });
+  // 按时间排序，更新缓存
+  allItems.sort((a, b) => b.publishedAt - a.publishedAt);
+  newsCache = {
+    items: allItems,
+    lastRefresh: now,
+    sources: sourceStatus,
+  };
+  writeNewsCache();
+  console.log(`[资讯] 刷新完成，共 ${allItems.length} 条资讯（来自 ${sourceStatus.filter(s => !s.error).length}/${RSS_SOURCES.length} 个源）`);
+  return newsCache;
+}
+
+readNewsCache();
+refreshNews(); // 启动时立即刷新一次
+setInterval(() => refreshNews(), NEWS_REFRESH_INTERVAL); // 定时刷新
+
+app.get('/api/news', (req, res) => {
+  const {
+    region = 'all',     // all | cn | en
+    sort = 'latest',    // latest | hot
+    sourceId,           // 按具体源过滤
+    category,           // 按分类过滤
+    limit = 50,
+    offset = 0,
+  } = req.query;
+
+  let items = newsCache.items.slice();
+  if (region === 'cn') items = items.filter(i => i.region === 'cn');
+  else if (region === 'en') items = items.filter(i => i.region === 'en');
+  if (sourceId) items = items.filter(i => i.sourceId === sourceId);
+  if (category) items = items.filter(i => i.category === category);
+  if (sort === 'hot') items.sort((a, b) => b.hotScore - a.hotScore || b.publishedAt - a.publishedAt);
+
+  const total = items.length;
+  const data = items.slice(Number(offset), Number(offset) + Number(limit));
+  res.json({
+    total,
+    limit: Number(limit),
+    offset: Number(offset),
+    sort,
+    region,
+    lastRefresh: newsCache.lastRefresh,
+    items: data,
+  });
+});
+
+// 国内 AI 科技资讯: 从已抓取的国内源中按 AI 关键词过滤排序
+const AI_KEYWORDS = [
+  'AI', '人工智能', '大模型', '机器学习', '深度学习', 'GPT', 'LLM', 'AGI',
+  '文心', '通义', '豆包', '智谱', 'Kimi', 'DeepSeek', 'Claude', 'ChatGPT',
+  '生成式', 'AIGC', '多模态', '智能体', 'Agent', '机器人', '自动驾驶',
+  '芯片', '算力', 'NVIDIA', '英伟达', 'OpenAI', 'Anthropic', 'Gemini',
+  '神经网络', 'Transformer', '强化学习', '视觉模型', 'Sora', 'Copilot',
+];
+
+function isAiRelevant(item) {
+  const text = `${item.title || ''} ${item.summary || ''}`;
+  return AI_KEYWORDS.some(k => text.toLowerCase().includes(k.toLowerCase()));
+}
+
+app.get('/api/news/ai-cn', (req, res) => {
+  const { limit = 50, offset = 0 } = req.query;
+  // 国内源 + AI 相关
+  let items = newsCache.items.filter(i => i.region === 'cn' && isAiRelevant(i));
+  items.sort((a, b) => b.publishedAt - a.publishedAt);
+  const total = items.length;
+  // 关联源状态(仅国内源)
+  const cnStatus = (newsCache.sources || []).filter(s => s.region === 'cn');
+  res.json({
+    total,
+    limit: Number(limit),
+    offset: Number(offset),
+    lastRefresh: newsCache.lastRefresh,
+    keywords: AI_KEYWORDS.length,
+    sources: cnStatus,
+    items: items.slice(Number(offset), Number(offset) + Number(limit)),
+  });
+});
+
+app.get('/api/news/sources', (req, res) => {
+  res.json({ sources: newsCache.sources, lastRefresh: newsCache.lastRefresh });
+});
+
+app.post('/api/news/refresh', async (req, res) => {
+  const cache = await refreshNews(true);
+  res.json({ ok: true, total: cache.items.length, lastRefresh: cache.lastRefresh });
+});
+
+// ==================== 国内 AI 资讯（单一来源 IT之家 每日抓取） ====================
+const ITOME_DIR = path.join(DATA_DIR, 'ithome-ai');
+const ITOME_INDEX = path.join(ITOME_DIR, 'index.json');
+const ITOME_TOP_N = 20;
+const ITOME_FEED_URL = 'https://www.ithome.com/rss/';
+
+function ensureItomeDir() {
+  if (!fs.existsSync(ITOME_DIR)) fs.mkdirSync(ITOME_DIR, { recursive: true });
+  if (!fs.existsSync(ITOME_INDEX)) fs.writeFileSync(ITOME_INDEX, '[]');
+}
+
+function readItomeIndex() {
+  try { return readJSON(ITOME_INDEX); } catch { return []; }
+}
+
+// 每日抓取: IT之家 feed → AI 关键词过滤 → 取前 20 条 → 按日期沉淀
+async function captureItomeDaily(force = false) {
+  ensureItomeDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(ITOME_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[IT之家] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[IT之家] 开始抓取 ${date} AI 相关热门 ${ITOME_TOP_N} 条...`);
+  const source = { id: 'ithome', name: 'IT之家', region: 'cn', category: '数码科技', url: ITOME_FEED_URL };
+  const { items } = await fetchSource(source);
+  const aiItems = items
+    .filter(it => isAiRelevant(it))
+    .sort((a, b) => b.publishedAt - a.publishedAt)
+    .slice(0, ITOME_TOP_N)
+    .map((it, i) => ({ rank: i + 1, ...it }));
+
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: aiItems.length,
+    totalFeed: items.length,
+    items: aiItems,
+  };
+  writeJSON(file, payload);
+
+  // 更新索引(按日期倒序)
+  let index = readItomeIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: aiItems.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(ITOME_INDEX, index);
+  console.log(`[IT之家] 抓取完成，feed ${items.length} 条 → AI 过滤 ${aiItems.length} 条，已沉淀至 ${file}`);
+  return payload;
+}
+
+// 每日 08:00 定时任务
+function scheduleItomeDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[IT之家] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureItomeDaily().catch(e => console.error('[IT之家] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureItomeDaily().catch(e => console.error('[IT之家] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureItomeDir();
+// 启动时: 如果一条历史数据都没有，先抓一次保证页面可用
+if (readItomeIndex().length === 0) {
+  captureItomeDaily().catch(e => console.error('[IT之家] 首次抓取失败:', e.message));
+}
+scheduleItomeDailyCapture();
+
+// 日期列表(左侧导航)
+app.get('/api/news/itome', (req, res) => {
+  res.json({ dates: readItomeIndex() });
+});
+
+// 最新一天
+app.get('/api/news/itome/latest', (req, res) => {
+  const index = readItomeIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(ITOME_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定日期
+app.get('/api/news/itome/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(ITOME_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取(强制覆盖今日)
+app.post('/api/news/itome/refresh', async (req, res) => {
+  try {
+    const payload = await captureItomeDaily(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 国内 AI 资讯 模块 结束 ====================
+
+// ==================== 虎嗅 前沿科技资讯 模块（科技频道API+RSS摘要, 每日08:00抓最新20条, 按日期沉淀） ====================
+const HUXIU_DIR = path.join(DATA_DIR, 'huxiu-news');
+const HUXIU_INDEX = path.join(HUXIU_DIR, 'index.json');
+const HUXIU_TOP_N = 20;
+const HUXIU_FEED_URL = 'https://rss.huxiu.com/';
+// 虎嗅「前沿科技」频道（channel_id=105），只抓科技频道文章
+const HUXIU_CHANNEL_API = 'https://api-article.huxiu.com/web/channel/articleList?platform=www&web_app=web_huxiu&channel_id=105&pagesize=30';
+
+function ensureHuxiuDir() {
+  if (!fs.existsSync(HUXIU_DIR)) fs.mkdirSync(HUXIU_DIR, { recursive: true });
+  if (!fs.existsSync(HUXIU_INDEX)) fs.writeFileSync(HUXIU_INDEX, '[]');
+}
+
+function readHuxiuIndex() {
+  try { return readJSON(HUXIU_INDEX); } catch { return []; }
+}
+
+// 循环剥离虎嗅正文模板前缀: "本文来自微信公众号：xxx，制图/编辑/作者/原文标题：xxx，《xxx》"
+const cleanHuxiuSummary = (s) => {
+  s = (s || '').trim();
+  const prefixRe = /^(本文来自[^，]*|原文标题[：:]\s*《[^》]*》|原文标题[：:][^，]*|制图[：:][^，]*|编辑[：:][^，]*|作者[：:][^，]*|《[^》]*》)([，,]\s*)?/;
+  let prev;
+  do { prev = s; s = s.replace(prefixRe, '').trim(); } while (s !== prev);
+  return s;
+};
+
+// 每日抓取: 虎嗅「前沿科技」频道 API → 最新 20 条 → 按日期沉淀
+// 正文摘要频道 API 大多为空, 从官方 RSS 按文章 aid 匹配补齐
+async function captureHuxiuDaily(force = false) {
+  ensureHuxiuDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(HUXIU_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[虎嗅] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[虎嗅] 开始抓取 ${date} 前沿科技频道最新 ${HUXIU_TOP_N} 条...`);
+
+  // 1. 科技频道文章列表（aid/标题/时间/作者）
+  let channelItems = [];
+  try {
+    const raw = await fetchSourceRaw(HUXIU_CHANNEL_API);
+    const json = JSON.parse(raw);
+    channelItems = (json && json.data && json.data.datalist) || [];
+  } catch (e) {
+    console.warn('[虎嗅] 频道 API 抓取失败:', e.message);
+  }
+  if (channelItems.length === 0) throw new Error('虎嗅科技频道抓取失败（接口无数据）');
+
+  // 2. RSS 摘要字典: aid → 清洗后 summary
+  const source = { id: 'huxiu', name: '虎嗅', region: 'cn', category: '前沿科技', url: HUXIU_FEED_URL };
+  const { items: rssItems } = await fetchSource(source);
+  const summaryByAid = {};
+  for (const it of rssItems) {
+    const m = /\/article\/(\d+)\.html/.exec(it.link || '');
+    if (m) summaryByAid[m[1]] = cleanHuxiuSummary(it.summary);
+  }
+
+  // 3. 合并: 频道字段 + RSS 摘要兜底, 按发布时间倒序取前 20
+  const newsItems = channelItems
+    .sort((a, b) => (b.dateline || 0) - (a.dateline || 0))
+    .slice(0, HUXIU_TOP_N)
+    .map((it, i) => {
+      const ts = (Number(it.dateline) || Math.floor(Date.now() / 1000)) * 1000;
+      const rssSummary = summaryByAid[it.aid] || '';
+      const summary = cleanHuxiuSummary(it.summary) || rssSummary;
+      return {
+        rank: i + 1,
+        id: `huxiu:${it.aid}`,
+        title: (it.title || '').trim(),
+        link: it.url || `https://www.huxiu.com/article/${it.aid}.html`,
+        summary: summary.slice(0, 500),
+        sourceId: 'huxiu',
+        sourceName: '虎嗅',
+        region: 'cn',
+        category: '前沿科技',
+        author: (it.user_info && it.user_info.username) || '',
+        publishedAt: ts,
+        publishedAtStr: new Date(ts).toISOString(),
+        hotScore: 0,
+      };
+    });
+
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: newsItems.length,
+    totalFeed: channelItems.length,
+    items: newsItems,
+  };
+  writeJSON(file, payload);
+
+  let index = readHuxiuIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: newsItems.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(HUXIU_INDEX, index);
+  console.log(`[虎嗅] 抓取完成，频道 ${channelItems.length} 条 → 沉淀 ${newsItems.length} 条，已存至 ${file}`);
+  return payload;
+}
+
+// 每日 08:00 定时任务
+function scheduleHuxiuDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[虎嗅] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureHuxiuDaily().catch(e => console.error('[虎嗅] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureHuxiuDaily().catch(e => console.error('[虎嗅] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureHuxiuDir();
+if (readHuxiuIndex().length === 0) {
+  captureHuxiuDaily().catch(e => console.error('[虎嗅] 首次抓取失败:', e.message));
+}
+scheduleHuxiuDailyCapture();
+
+// 日期列表(左侧导航)
+app.get('/api/news/huxiu', (req, res) => {
+  res.json({ dates: readHuxiuIndex() });
+});
+
+// 最新一天
+app.get('/api/news/huxiu/latest', (req, res) => {
+  const index = readHuxiuIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(HUXIU_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定日期
+app.get('/api/news/huxiu/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(HUXIU_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取(强制覆盖今日)
+app.post('/api/news/huxiu/refresh', async (req, res) => {
+  try {
+    const payload = await captureHuxiuDaily(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 虎嗅 模块 结束 ====================
+
+// ==================== 海外 AI 资讯 模块（TechCrunch AI 官方RSS, 每日08:00抓最新20条, 按日期沉淀） ====================
+const TCAI_DIR = path.join(DATA_DIR, 'techcrunch-ai');
+const TCAI_INDEX = path.join(TCAI_DIR, 'index.json');
+const TCAI_TOP_N = 20;
+const TCAI_FEED_URL = 'https://techcrunch.com/category/artificial-intelligence/feed/';
+
+function ensureTcAiDir() {
+  if (!fs.existsSync(TCAI_DIR)) fs.mkdirSync(TCAI_DIR, { recursive: true });
+  if (!fs.existsSync(TCAI_INDEX)) fs.writeFileSync(TCAI_INDEX, '[]');
+}
+
+function readTcAiIndex() {
+  try { return readJSON(TCAI_INDEX); } catch { return []; }
+}
+
+// 每日抓取: TechCrunch AI feed → 最新 20 条 → 按日期沉淀
+async function captureTcAiDaily(force = false) {
+  ensureTcAiDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(TCAI_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[TechCrunch] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[TechCrunch] 开始抓取 ${date} 最新 ${TCAI_TOP_N} 条...`);
+  const source = { id: 'techcrunch', name: 'TechCrunch', region: 'us', category: 'AI资讯', url: TCAI_FEED_URL };
+  const { items } = await fetchSource(source);
+  const newsItems = items
+    .sort((a, b) => b.publishedAt - a.publishedAt)
+    .slice(0, TCAI_TOP_N)
+    .map((it, i) => ({
+      rank: i + 1,
+      ...it,
+      // 清理正文 HTML 标签与多余空白, 摘要截断
+      summary: (it.summary || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200),
+    }));
+
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: newsItems.length,
+    totalFeed: items.length,
+    items: newsItems,
+  };
+  writeJSON(file, payload);
+
+  let index = readTcAiIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: newsItems.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(TCAI_INDEX, index);
+  console.log(`[TechCrunch] 抓取完成，feed ${items.length} 条 → 沉淀 ${newsItems.length} 条，已存至 ${file}`);
+  return payload;
+}
+
+// 每日 08:00 定时任务
+function scheduleTcAiDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[TechCrunch] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureTcAiDaily().catch(e => console.error('[TechCrunch] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureTcAiDaily().catch(e => console.error('[TechCrunch] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureTcAiDir();
+if (readTcAiIndex().length === 0) {
+  captureTcAiDaily().catch(e => console.error('[TechCrunch] 首次抓取失败:', e.message));
+}
+scheduleTcAiDailyCapture();
+
+// 日期列表(左侧导航)
+app.get('/api/news/tcai', (req, res) => {
+  res.json({ dates: readTcAiIndex() });
+});
+
+// 最新一天
+app.get('/api/news/tcai/latest', (req, res) => {
+  const index = readTcAiIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(TCAI_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定日期
+app.get('/api/news/tcai/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(TCAI_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取(强制覆盖今日)
+app.post('/api/news/tcai/refresh', async (req, res) => {
+  try {
+    const payload = await captureTcAiDaily(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== 海外 AI 资讯 模块 结束 ====================
+
+// ==================== Ars Technica 模块（官方RSS, 每日08:00抓最新20条, 按日期沉淀） ====================
+const ARS_DIR = path.join(DATA_DIR, 'ars-technica');
+const ARS_INDEX = path.join(ARS_DIR, 'index.json');
+const ARS_TOP_N = 20;
+const ARS_FEED_URL = 'https://arstechnica.com/feed/';
+
+function ensureArsDir() {
+  if (!fs.existsSync(ARS_DIR)) fs.mkdirSync(ARS_DIR, { recursive: true });
+  if (!fs.existsSync(ARS_INDEX)) fs.writeFileSync(ARS_INDEX, '[]');
+}
+
+function readArsIndex() {
+  try { return readJSON(ARS_INDEX); } catch { return []; }
+}
+
+async function captureArsDaily(force = false) {
+  ensureArsDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(ARS_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[Ars] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[Ars] 开始抓取 ${date} 最新 ${ARS_TOP_N} 条...`);
+  const source = { id: 'arstechnica', name: 'Ars Technica', region: 'us', category: '科技深度', url: ARS_FEED_URL };
+  const { items } = await fetchSource(source);
+  const newsItems = items
+    .sort((a, b) => b.publishedAt - a.publishedAt)
+    .slice(0, ARS_TOP_N)
+    .map((it, i) => ({
+      rank: i + 1,
+      ...it,
+      summary: (it.summary || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 200),
+    }));
+
+  const payload = { date, capturedAt: new Date().toISOString(), count: newsItems.length, totalFeed: items.length, items: newsItems };
+  writeJSON(file, payload);
+
+  let index = readArsIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: newsItems.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(ARS_INDEX, index);
+  console.log(`[Ars] 抓取完成，feed ${items.length} 条 → 沉淀 ${newsItems.length} 条，已存至 ${file}`);
+  return payload;
+}
+
+function scheduleArsDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[Ars] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureArsDaily().catch(e => console.error('[Ars] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureArsDaily().catch(e => console.error('[Ars] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureArsDir();
+if (readArsIndex().length === 0) {
+  captureArsDaily().catch(e => console.error('[Ars] 首次抓取失败:', e.message));
+}
+scheduleArsDailyCapture();
+
+app.get('/api/news/ars', (req, res) => {
+  res.json({ dates: readArsIndex() });
+});
+
+app.get('/api/news/ars/latest', (req, res) => {
+  const index = readArsIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(ARS_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+app.get('/api/news/ars/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(ARS_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+app.post('/api/news/ars/refresh', async (req, res) => {
+  try {
+    const payload = await captureArsDaily(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== Ars Technica 模块 结束 ====================
+
+// ==================== B站 AI 科技视频 模块（每日08:00抓科技分区热门20条，按日期沉淀） ====================
+const BILI_DIR = path.join(DATA_DIR, 'bilibili-tech');
+const BILI_INDEX = path.join(BILI_DIR, 'index.json');
+const BILI_TOP_N = 20;
+const BILI_FETCH_TIMEOUT = 20000;
+// 科技分区(rid=188 科技)热门榜
+const BILI_RANK_URL = 'https://api.bilibili.com/x/web-interface/ranking/v2?rid=188&type=all';
+// 近7天(秒) - 搜索接口发布时间窗口
+const BILI_RECENT_DAYS = 7;
+
+function ensureBiliDir() {
+  if (!fs.existsSync(BILI_DIR)) fs.mkdirSync(BILI_DIR, { recursive: true });
+  if (!fs.existsSync(BILI_INDEX)) fs.writeFileSync(BILI_INDEX, '[]');
+}
+
+function readBiliIndex() {
+  try { return readJSON(BILI_INDEX); } catch { return []; }
+}
+
+function biliGetCookie() {
+  // 用户配置的 bilibili 登录 Cookie(浏览器复制), 为空则匿名(匿名关键词搜索已可用)
+  return (readConfig().biliCookie || '').trim();
+}
+
+// ---------- bilibili 搜索抓取: 近7天 + AI科技分区 + 关键词配额 ----------
+// 纯 AI 关键词(不含消费电子词), 匿名可用无需登录/WBI签名
+const BILI_SEARCH_KEYWORDS = ['AI', '大模型', 'DeepSeek', 'AI工具', 'Agent', 'OpenAI', '人工智能', '机器学习', 'Claude', 'GPT'];
+const BILI_SEARCH_PAGE = 30;
+const BILI_QUOTA_PER_KW = 3; // 每个关键词最多贡献几条, 防止单一爆款霸榜
+// AI 科技向分区白名单(剔除数码/电脑装机/手机平板等消费电子分区)
+const BILI_TECH_TYPES = new Set([
+  '计算机技术', '软件应用', '科学科普', '人工智能', '知识', '校园学习', '职业职场', '野生技能协会',
+]);
+
+// 单关键词搜索: 近7天 + 按播放量(order=click)排序, 返回原始搜索项
+async function biliSearchByKeyword(keyword, withinDays = BILI_RECENT_DAYS) {
+  const end = Math.round(Date.now() / 1000);
+  const begin = end - withinDays * 86400;
+  const qs = new URLSearchParams({
+    keyword,
+    search_type: 'video',
+    order: 'click',
+    pubtime_begin_s: String(begin),
+    pubtime_end_s: String(end),
+    page: '1',
+    page_size: String(BILI_SEARCH_PAGE),
+    platform: 'pc',
+    web_location: '1550101',
+  }).toString();
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+    'Referer': 'https://search.bilibili.com/',
+    'Accept': 'application/json, text/plain, */*',
+  };
+  const cookie = biliGetCookie();
+  if (cookie) headers['Cookie'] = cookie;
+  const raw = await fetchWithHeaders(`https://api.bilibili.com/x/web-interface/wbi/search/type?${qs}`, BILI_FETCH_TIMEOUT, headers);
+  const j = JSON.parse(raw);
+  if (j.code !== 0) throw new Error(`bilibili 搜索接口错误 code=${j.code} ${j.message || ''}`);
+  const arr = j.data && j.data.result;
+  if (!Array.isArray(arr)) throw new Error('bilibili 搜索无结果(可能被风控)');
+  return arr;
+}
+
+// fetch 带自定义 headers(复用 http/https)
+function fetchWithHeaders(url, timeoutMs = 30000, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Request timed out')), timeoutMs);
+    try {
+      const parsed = new URL(url);
+      const lib = parsed.protocol === 'https:' ? https : http;
+      const req = lib.get(url, { headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        ...headers,
+      }, timeout: timeoutMs }, (res) => {
+        clearTimeout(timer);
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          fetchWithHeaders(new URL(res.headers.location, url).toString(), timeoutMs, headers).then(resolve).catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) { reject(new Error(`HTTP ${res.statusCode}`)); return; }
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      });
+      req.on('error', (e) => { clearTimeout(timer); reject(e); });
+      req.on('timeout', () => { req.destroy(); clearTimeout(timer); reject(new Error('Request timed out')); });
+    } catch (e) { clearTimeout(timer); reject(e); }
+  });
+}
+
+// 将 bilibili 视频对象映射为统一项(兼容 ranking 与 search 两种字段)
+function biliMapItem(v, rank = 0) {
+  const stat = v.stat || {};
+  const owner = v.owner || {};
+  const typename = v.typename || v.tname || '';
+  return {
+    rank,
+    videoId: v.bvid || '',
+    aid: v.aid || 0,
+    title: (v.title || '').trim().replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'"), // 搜索返回标题带 <em> 高亮标签与 HTML 实体
+    link: v.short_link_v2 || v.short_link || v.arcurl || `https://www.bilibili.com/video/${v.bvid}`,
+    pic: (v.pic || v.cover || '').replace(/^\/\//, 'https://').replace(/^http:\/\//, 'https://'),
+    // duration 可能是秒数(ranking)或 "mm:ss" 字符串(搜索), 统一转秒数
+    duration: typeof v.duration === 'string' && v.duration.includes(':')
+      ? v.duration.split(':').reduce((sum, n, i, arr) => sum + (Number(n) || 0) * Math.pow(60, arr.length - 1 - i), 0)
+      : (v.duration || 0),
+    publishTime: v.pubdate ? v.pubdate * 1000 : Date.now(),
+    publishTimeStr: v.pubdate ? new Date(v.pubdate * 1000).toISOString() : new Date().toISOString(),
+    views: stat.view || v.play || 0,
+    danmaku: stat.danmaku || v.danmaku || 0,
+    likes: stat.like || v.like || 0,
+    upName: owner.name || v.author || v.uname || '',
+    upMid: owner.mid || v.mid || 0,
+    upAvatar: owner.face || v.upic || '',
+    category: typename || '科技',
+    // 视频简介(搜索接口返回 description, ranking 接口返回 desc), 去掉 HTML 标签与换行
+    description: (v.description || v.desc || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+  };
+}
+
+// 抓取 bilibili 科技分区热门排行榜(降级), 返回统一视频项
+async function fetchBiliTechRanking() {
+  const raw = await fetchSourceRaw(BILI_RANK_URL, BILI_FETCH_TIMEOUT);
+  const json = JSON.parse(raw);
+  if (json.code !== 0) throw new Error(json.message || `bilibili API code ${json.code}`);
+  const list = (json.data && json.data.list) || [];
+  return list.map((v, i) => biliMapItem(v, i + 1));
+}
+
+// 主抓取: 多AI关键词搜索近7天视频, 每词按播放量取配额 top3 → 汇总去重 → 按播放量排序取20
+// (配额制防止单一爆款/单一话题霸榜; 若搜索全部失败(风控), 降级为热门榜按近30天过滤)
+async function fetchBiliTechRecent() {
+  try {
+    const seen = new Set(); // 已入选 bvid, 跨关键词去重
+    const picked = [];
+    const windowStart = Date.now() - BILI_RECENT_DAYS * 86400 * 1000; // 严格近7天窗口
+    let kwFail = 0;
+    for (const kw of BILI_SEARCH_KEYWORDS) {
+      if (picked.length >= BILI_TOP_N) break;
+      try {
+        const arr = await biliSearchByKeyword(kw, BILI_RECENT_DAYS);
+        // 该关键词下: 分区过滤 + 窗口过滤 + AI相关性过滤 + 去重, 按播放量取前 QUOTA 条
+        const candidates = arr
+          .filter(v => v.bvid && !seen.has(v.bvid))
+          .filter(v => BILI_TECH_TYPES.has(v.typename || v.tname || ''))
+          .map(v => biliMapItem(v))
+          .filter(it => it.publishTime >= windowStart && isAiRelevant(it))
+          .sort((a, b) => b.views - a.views)
+          .slice(0, BILI_QUOTA_PER_KW);
+        for (const item of candidates) {
+          seen.add(item.videoId);
+          picked.push(item);
+        }
+        await new Promise(r => setTimeout(r, 800)); // 间隔防风控
+      } catch (e) {
+        kwFail++;
+        console.log(`[B站] 关键词 "${kw}" 搜索失败: ${e.message}`);
+        if (kwFail >= 4) throw e; // 多数关键词失败视为整体风控
+      }
+    }
+    if (picked.length === 0) throw new Error('搜索无AI科技视频结果');
+    return picked.sort((a, b) => b.views - a.views).slice(0, BILI_TOP_N).map((v, i) => ({ ...v, rank: i + 1 }));
+  } catch (e) {
+    console.log(`[B站] 搜索方案不可用(${e.message}), 降级为热门榜按近30天过滤`);
+    const all = await fetchBiliTechRanking();
+    const cutoff = Date.now() - 30 * 86400 * 1000;
+    const recent = all.filter(v => v.publishTime >= cutoff).sort((a, b) => b.views - a.views);
+    return (recent.length ? recent : all).slice(0, BILI_TOP_N).map((v, i) => ({ ...v, rank: i + 1 }));
+  }
+}
+
+// 每日抓取: 科技分区近期热门 → 取前20条 → 按日期沉淀
+async function captureBiliDaily(force = false) {
+  ensureBiliDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(BILI_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[B站] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[B站] 开始抓取 ${date} 科技分区近期热门 ${BILI_TOP_N} 条...`);
+  const all = await fetchBiliTechRecent();
+  const items = all.slice(0, BILI_TOP_N);
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: items.length,
+    total: all.length,
+    mode: 'search',
+    items,
+  };
+  writeJSON(file, payload);
+
+  let index = readBiliIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: items.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(BILI_INDEX, index);
+  console.log(`[B站] 抓取完成，共 ${items.length} 条（科技分区共 ${all.length} 条），已沉淀至 ${file}`);
+  return payload;
+}
+
+// 每日 08:00 定时任务
+function scheduleBiliDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[B站] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureBiliDaily().catch(e => console.error('[B站] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureBiliDaily().catch(e => console.error('[B站] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureBiliDir();
+if (readBiliIndex().length === 0) {
+  captureBiliDaily().catch(e => console.error('[B站] 首次抓取失败:', e.message));
+}
+scheduleBiliDailyCapture();
+
+// 日期列表(左侧导航)
+app.get('/api/bili', (req, res) => {
+  res.json({ dates: readBiliIndex() });
+});
+
+// 最新一天
+app.get('/api/bili/latest', (req, res) => {
+  const index = readBiliIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(BILI_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// B站登录 Cookie 配置(搜索接口"近7天+播放量"需要; 未配置时降级为热门榜过滤)
+app.get('/api/bili/cookie', (req, res) => {
+  const cfg = readConfig();
+  res.json({ hasCookie: !!cfg.biliCookie, cookieMasked: cfg.biliCookie ? cfg.biliCookie.slice(0, 20) + '…(已配置)' : '' });
+});
+
+app.post('/api/bili/cookie', (req, res) => {
+  const { cookie } = req.body;
+  const cfg = readConfig();
+  cfg.biliCookie = (cookie || '').trim();
+  writeConfig(cfg);
+  res.json({ ok: true, hasCookie: !!cfg.biliCookie });
+});
+
+app.delete('/api/bili/cookie', (req, res) => {
+  const cfg = readConfig();
+  delete cfg.biliCookie;
+  writeConfig(cfg);
+  res.json({ ok: true, hasCookie: false });
+});
+
+// 指定日期
+app.get('/api/bili/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(BILI_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取(强制覆盖今日)
+app.post('/api/bili/refresh', async (req, res) => {
+  try {
+    const payload = await captureBiliDaily(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 同源图片代理: hdslb 等图床在跨域 <img> 下被浏览器 ORB 拦截,统一经本接口转发为同源图片
+app.get('/api/proxy-image', (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).end('missing url');
+  let target;
+  try { target = new URL(url); } catch { return res.status(400).end('bad url'); }
+  if (!/^https?:$/.test(target.protocol)) return res.status(400).end('bad scheme');
+  const lib = target.protocol === 'https:' ? https : http;
+  const upstream = lib.get(target, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36 GourdSprite/1.0',
+      'Referer': 'https://www.bilibili.com/'
+    },
+    timeout: 15000,
+  }, (up) => {
+    if (up.statusCode >= 300 && up.statusCode < 400 && up.headers.location) {
+      // follow redirect up to 3 via recursion
+      const redirected = `${target.origin}${up.headers.location}` === up.headers.location ? up.headers.location : new URL(up.headers.location, target).toString();
+      res.redirect(redirected);
+      up.resume();
+      return;
+    }
+    if (up.statusCode !== 200) {
+      up.resume();
+      return res.status(up.statusCode || 502).end();
+    }
+    const ct = up.headers['content-type'] || 'image/jpeg';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    up.pipe(res);
+  });
+  upstream.on('error', () => { if (!res.headersSent) res.status(502).end(); });
+  upstream.on('timeout', () => { upstream.destroy(); if (!res.headersSent) res.status(504).end(); });
+});
+
+// ==================== B站 模块 结束 ====================
+
+// ==================== 资讯 RSS 模块 结束 ====================
+
+// ==================== GitHub 每日涨星项目模块 ====================
+const GITHUB_TRENDING_DIR = path.join(DATA_DIR, 'github-trending');
+const GITHUB_TRENDING_INDEX = path.join(GITHUB_TRENDING_DIR, 'index.json');
+const STAR_SNAPSHOT_DIR = path.join(DATA_DIR, 'star-snapshots');
+const TRENDING_TOP_N = 20;
+const TRENDING_LOOKBACK_DAYS = 7; // 最近7天内创建、按star排序 = 涨星最快的新项目
+
+function ensureTrendingDir() {
+  if (!fs.existsSync(GITHUB_TRENDING_DIR)) fs.mkdirSync(GITHUB_TRENDING_DIR, { recursive: true });
+  if (!fs.existsSync(GITHUB_TRENDING_INDEX)) fs.writeFileSync(GITHUB_TRENDING_INDEX, '[]');
+}
+
+function readTrendingIndex() {
+  try { return readJSON(GITHUB_TRENDING_INDEX); } catch { return []; }
+}
+
+function writeTrendingIndex(index) {
+  writeJSON(GITHUB_TRENDING_INDEX, index);
+}
+
+function dateStrOf(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// 从 README markdown 提取项目详细介绍（去掉图片/badge/HTML，取前800字）
+function extractReadmeIntro(md) {
+  if (!md) return '';
+  let text = md
+    .replace(/```[\s\S]*?```/g, ' ')        // 代码块
+    .replace(/<[^>]+>/g, ' ')                 // HTML 标签
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')    // 图片
+    .replace(/\[!\[[^\]]*\]\[[^\]]*\]/g, ' ') // badge 引用
+    .replace(/\[[^\]]*\]\([^)]*\)/g, m => {   // 链接保留文字
+      const t = m.match(/^\[([^\]]*)\]/);
+      return t ? t[1] : '';
+    })
+    .replace(/^[#>\-\*\s|]+/gm, ' ')
+    .replace(/[*_`~#>|\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.slice(0, 800);
+}
+
+// 找 N 天前最近一天已存在的 star 快照(用于计算一周 star 增幅)
+function findSnapshotAgo(days) {
+  try {
+    const files = fs.readdirSync(STAR_SNAPSHOT_DIR).filter(f => /^\d{4}-\d{2}-\d{2}\.json$/.test(f));
+    if (!files.length) return null;
+    const targetStr = dateStrOf(new Date(Date.now() - days * 24 * 60 * 60 * 1000));
+    const candidates = files.map(f => f.replace('.json', '')).filter(d => d <= targetStr);
+    if (!candidates.length) return null;
+    candidates.sort();
+    return readJSON(path.join(STAR_SNAPSHOT_DIR, candidates[candidates.length - 1] + '.json'));
+  } catch { return null; }
+}
+
+// 周报: 对候选池按 7 天前快照的 star 增幅排序,取 top20;无快照则回退按当前 star 取 top20
+function applyWeeklyDelta(pool) {
+  const snapshot = findSnapshotAgo(7);
+  if (!snapshot || !snapshot.items || !snapshot.items.length) {
+    return pool.slice(0, TRENDING_TOP_N);
+  }
+  const snapMap = new Map(snapshot.items.map(i => [i.name, i.stars || 0]));
+  return pool
+    .map(r => ({ ...r, _delta: (r.stargazers_count || 0) - (snapMap.get(r.full_name) || 0) }))
+    .sort((a, b) => b._delta - a._delta)
+    .slice(0, TRENDING_TOP_N);
+}
+
+async function fetchTrendingRepos(mode = 'daily') {
+  const octokit = createOctokit();
+  const since = new Date(Date.now() - TRENDING_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  let query, perPage = TRENDING_TOP_N;
+  if (mode === 'weekly') {
+    // 周报: 候选池 = 近7天有更新的活跃仓库 top100,再按一周 star 增幅排序
+    query = `pushed:>${dateStrOf(since)}`;
+    perPage = 100;
+  } else {
+    // 日报: 近7天创建、star 最多的新项目
+    query = `created:>${dateStrOf(since)}`;
+  }
+  const { data } = await octokit.search.repos({
+    q: query,
+    sort: 'stars',
+    order: 'desc',
+    per_page: perPage,
+  });
+
+  let list = data.items || [];
+  if (mode === 'weekly') {
+    list = applyWeeklyDelta(list);
+  }
+
+  const items = [];
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i];
+    let readmeIntro = '';
+    try {
+      const readme = await octokit.repos.getReadme({
+        owner: r.owner.login, repo: r.name, mediaType: { format: 'raw' }
+      });
+      readmeIntro = extractReadmeIntro(readme.data);
+      await new Promise(res => setTimeout(res, 200)); // 温柔限速
+    } catch (e) {
+      // README 获取失败不影响整体
+    }
+    items.push({
+      rank: i + 1,
+      name: r.full_name,
+      title: r.name,
+      url: r.html_url,
+      description: r.description || '',
+      detailIntro: readmeIntro,
+      stars: r.stargazers_count || 0,
+      starDelta: mode === 'weekly' && typeof r._delta === 'number' ? r._delta : null,
+      forks: r.forks_count || 0,
+      watchers: r.watchers_count || 0,
+      language: r.language || '',
+      topics: r.topics || [],
+      homepage: r.homepage || '',
+      license: r.license ? (r.license.spdx_id || r.license.name || '') : '',
+      owner: r.owner.login,
+      ownerAvatar: r.owner.avatar_url,
+      createdAt: r.created_at,
+      archived: r.archived || false,
+    });
+  }
+  return items;
+}
+
+async function captureDailyTrending(force = false) {
+  ensureTrendingDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(GITHUB_TRENDING_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[GitHub] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[GitHub] 开始抓取 ${date} 涨星最快的 ${TRENDING_TOP_N} 个项目...`);
+  const items = await fetchTrendingRepos();
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: items.length,
+    items,
+  };
+  writeJSON(file, payload);
+
+  // 更新索引（按日期倒序）
+  let index = readTrendingIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: items.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeTrendingIndex(index);
+  console.log(`[GitHub] 抓取完成，共 ${items.length} 个项目，已沉淀至 ${file}`);
+  return payload;
+}
+
+// 每日 star 快照: 记录候选池(近7天活跃 top100)的 star 数,供周报计算一周增幅
+function ensureSnapshotDir() {
+  if (!fs.existsSync(STAR_SNAPSHOT_DIR)) fs.mkdirSync(STAR_SNAPSHOT_DIR, { recursive: true });
+}
+
+async function captureStarSnapshot(force = false) {
+  ensureSnapshotDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(STAR_SNAPSHOT_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) return readJSON(file);
+  const octokit = createOctokit();
+  const since = new Date(Date.now() - TRENDING_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
+  const { data } = await octokit.search.repos({
+    q: `pushed:>${dateStrOf(since)}`,
+    sort: 'stars',
+    order: 'desc',
+    per_page: 100,
+  });
+  const items = (data.items || []).map(r => ({
+    name: r.full_name,
+    stars: r.stargazers_count || 0,
+  }));
+  const payload = { date, capturedAt: new Date().toISOString(), count: items.length, items };
+  writeJSON(file, payload);
+  console.log(`[Star快照] 已记录 ${items.length} 个候选仓库 star(${date})`);
+  return payload;
+}
+
+// 每日 08:00 定时任务
+function scheduleDailyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[GitHub] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureDailyTrending().catch(e => console.error('[GitHub] 定时抓取失败:', e.message));
+    captureStarSnapshot().catch(e => console.error('[Star快照] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureDailyTrending().catch(e => console.error('[GitHub] 定时抓取失败:', e.message));
+      captureStarSnapshot().catch(e => console.error('[Star快照] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureTrendingDir();
+// 启动时: 如果一条历史数据都没有，先抓一次保证页面可用；否则只调度 08:00
+if (readTrendingIndex().length === 0) {
+  captureDailyTrending().catch(e => console.error('[GitHub] 首次抓取失败:', e.message));
+}
+// 启动即补一次今日快照,保证从今天起积累 star 快照
+captureStarSnapshot().catch(e => console.error('[Star快照] 首次快照失败:', e.message));
+scheduleDailyCapture();
+
+// 日期列表（左侧导航）
+app.get('/api/github/trending', (req, res) => {
+  res.json({ dates: readTrendingIndex() });
+});
+
+// 最新一天
+app.get('/api/github/trending/latest', (req, res) => {
+  const index = readTrendingIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(GITHUB_TRENDING_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定日期
+app.get('/api/github/trending/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(GITHUB_TRENDING_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取（强制覆盖今日）
+app.post('/api/github/trending/refresh', async (req, res) => {
+  try {
+    const payload = await captureDailyTrending(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== GitHub 每周涨星项目模块 ====================
+const GITHUB_WEEKLY_DIR = path.join(DATA_DIR, 'github-weekly');
+const GITHUB_WEEKLY_INDEX = path.join(GITHUB_WEEKLY_DIR, 'index.json');
+
+function ensureWeeklyDir() {
+  if (!fs.existsSync(GITHUB_WEEKLY_DIR)) fs.mkdirSync(GITHUB_WEEKLY_DIR, { recursive: true });
+  if (!fs.existsSync(GITHUB_WEEKLY_INDEX)) fs.writeFileSync(GITHUB_WEEKLY_INDEX, '[]');
+}
+
+function readWeeklyIndex() {
+  try { return readJSON(GITHUB_WEEKLY_INDEX); } catch { return []; }
+}
+
+// 返回日期所在周的周一日期作为周标识(如 2026-09-14 表示 09/14-09/20 周)
+function weekKeyOf(d) {
+  const day = new Date(d);
+  const diff = (day.getDay() + 6) % 7; // 周一=0
+  day.setDate(day.getDate() - diff);
+  return dateStrOf(day);
+}
+
+// 周标识 → 显示标签: 09/14-09/20 周
+function weekLabel(weekKey) {
+  const start = new Date(weekKey + 'T00:00:00');
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  return `${weekKey.slice(5).replace('-', '/')}-${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')} 周`;
+}
+
+// 每周抓取一次: 近7天有更新的活跃热门仓库 top20(老项目也能进榜)
+async function captureWeeklyTrending(force = false) {
+  ensureWeeklyDir();
+  const weekKey = weekKeyOf(new Date());
+  const file = path.join(GITHUB_WEEKLY_DIR, `${weekKey}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[GitHub-周报] 本周已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[GitHub-周报] 开始抓取 ${weekKey} 周活跃热门仓库 top ${TRENDING_TOP_N}...`);
+  const items = await fetchTrendingRepos('weekly');
+  const payload = {
+    week: weekKey,
+    label: weekLabel(weekKey),
+    capturedAt: new Date().toISOString(),
+    count: items.length,
+    items,
+  };
+  writeJSON(file, payload);
+
+  // 更新索引(按周倒序)
+  let index = readWeeklyIndex().filter(x => x.week !== weekKey);
+  index.unshift({ week: weekKey, label: payload.label, count: items.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.week.localeCompare(a.week));
+  writeJSON(GITHUB_WEEKLY_INDEX, index);
+  console.log(`[GitHub-周报] 抓取完成，共 ${items.length} 个项目，已沉淀至 ${file}`);
+  return payload;
+}
+
+// 每周一 08:00 定时抓取
+function scheduleWeeklyCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  // 推进到下一个周一(周一=0)
+  const dayDiff = (next.getDay() + 6) % 7;
+  if (dayDiff !== 0) next.setDate(next.getDate() + (7 - dayDiff));
+  const delay = next - now;
+  console.log(`[GitHub-周报] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureWeeklyTrending().catch(e => console.error('[GitHub-周报] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureWeeklyTrending().catch(e => console.error('[GitHub-周报] 定时抓取失败:', e.message));
+    }, 7 * 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureWeeklyDir();
+// 启动时: 如果一条周数据都没有，先抓一次保证页面可用
+if (readWeeklyIndex().length === 0) {
+  captureWeeklyTrending().catch(e => console.error('[GitHub-周报] 首次抓取失败:', e.message));
+}
+scheduleWeeklyCapture();
+
+// 周列表(左侧导航)
+app.get('/api/github/weekly', (req, res) => {
+  res.json({ weeks: readWeeklyIndex() });
+});
+
+// 最新一周
+app.get('/api/github/weekly/latest', (req, res) => {
+  const index = readWeeklyIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const week = index[0].week;
+  const file = path.join(GITHUB_WEEKLY_DIR, `${week}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定周(以周一的 YYYY-MM-DD 为 key)
+app.get('/api/github/weekly/:week', (req, res) => {
+  const { week } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return res.status(400).json({ error: '周标识格式应为 YYYY-MM-DD(周一日期)' });
+  const file = path.join(GITHUB_WEEKLY_DIR, `${week}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该周无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取(强制覆盖本周)
+app.post('/api/github/weekly/refresh', async (req, res) => {
+  try {
+    const payload = await captureWeeklyTrending(true);
+    res.json({ ok: true, week: payload.week, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== GitHub 每周涨星项目模块 结束 ====================
+
+// ==================== GitHub 每日涨星项目模块 结束 ====================
+
+// ==================== X (Twitter) KOL 发言模块 ====================
+const X_KOL_CACHE_FILE = path.join(DATA_DIR, 'x-kol.json');
+const X_REFRESH_INTERVAL = 30 * 60 * 1000; // 30 分钟
+const X_FETCH_TIMEOUT = 20000; // 20 秒
+const X_CONCURRENCY = 3; // 每批并发数，避免 RSSHub 限流
+
+// KOL 配置：handle/name/role。无个人账号者用官方账号替代。
+// 注：@demaborr / @drfeili 凭印象填写，TODO: 校准（真实可能是 @DemisHassabis / @drfeifei）
+const X_KOLS = [
+  { handle: 'elonmusk',   name: 'Elon Musk',       role: 'Tesla / SpaceX / xAI CEO' },
+  { handle: 'sama',       name: 'Sam Altman',      role: 'OpenAI CEO' },
+  { handle: 'demaborr',   name: 'Demis Hassabis',   role: 'Google DeepMind CEO（TODO: 校准 handle）' }, // TODO: 校准 handle
+  { handle: 'nvidia',     name: 'NVIDIA 官方',      role: 'Jensen Huang / NVIDIA' }, // Jensen Huang 无个人账号，用官方替代
+  { handle: 'ylecun',     name: 'Yann LeCun',       role: 'Meta Chief AI Scientist' },
+  { handle: 'GoogleAI',   name: 'Google AI 官方',   role: 'Geoffrey Hinton / Google AI' }, // Hinton 无个人账号，用官方替代
+  { handle: 'drfeili',    name: 'Fei-Fei Li',       role: 'Stanford HAI 主任（TODO: 校准 handle）' }, // TODO: 校准 handle，真实可能为 @drfeifei
+  { handle: 'OpenAI',     name: 'OpenAI 官方',     role: 'Ilya Sutskever / OpenAI' }, // Ilya 无个人账号，用官方替代
+  { handle: 'AnthropicAI',name: 'Anthropic 官方',   role: 'Dario Amodei / Anthropic' }, // Dario 无个人账号，用官方替代
+  { handle: 'karpathy',   name: 'Andrej Karpathy', role: 'AI 研究者 / Eureka Labs' },
+];
+
+let xKolCache = { lastRefresh: 0, items: [], status: [] };
+
+function readXKolCache() {
+  try {
+    if (fs.existsSync(X_KOL_CACHE_FILE)) {
+      xKolCache = JSON.parse(fs.readFileSync(X_KOL_CACHE_FILE, 'utf-8'));
+    }
+  } catch (e) { console.warn('[X] 读取缓存失败:', e.message); }
+}
+
+function writeXKolCache() {
+  try { fs.writeFileSync(X_KOL_CACHE_FILE, JSON.stringify(xKolCache, null, 2)); }
+  catch (e) { console.warn('[X] 写入缓存失败:', e.message); }
+}
+
+// 从 RSSHub twitter item 提取图片 URL（ enclosure 或 content 内 <img>）
+function extractXMedia(rawItem) {
+  if (rawItem.enclosure && rawItem.enclosure.url) return rawItem.enclosure.url;
+  const html = rawItem.content || rawItem['content:encoded'] || '';
+  const m = String(html).match(/<img[^>]*src=["']([^"']+)["']/i);
+  return m ? m[1] : '';
+}
+
+function normalizeXItem(kol, raw) {
+  const pubDate = raw.isoDate || raw.pubDate || raw.date || Date.now();
+  const publishedAt = new Date(pubDate).getTime();
+  let text = raw.contentSnippet || raw.content || raw.title || '';
+  if (typeof text === 'string') text = text.replace(/<[^>]+>/g, '').trim();
+  const link = raw.link || raw.guid || '';
+  return {
+    handle: kol.handle,
+    name: kol.name,
+    role: kol.role,
+    text: text.slice(0, 1000),
+    link,
+    pubDate: isNaN(publishedAt) ? Date.now() : publishedAt,
+    pubDateStr: new Date(isNaN(publishedAt) ? Date.now() : publishedAt).toISOString(),
+    mediaUrl: extractXMedia(raw),
+  };
+}
+
+async function fetchXKol(kol) {
+  try {
+    const url = `https://rsshub.app/twitter/user/${kol.handle}`;
+    const raw = await fetchSourceRaw(url, X_FETCH_TIMEOUT);
+    const cleaned = cleanXmlBody(raw);
+    const feed = await rssParser.parseString(cleaned);
+    const items = (feed.items || []).slice(0, 15).map(it => normalizeXItem(kol, it));
+    return { kol, items, error: null };
+  } catch (e) {
+    console.warn(`[X] ${kol.name}(@${kol.handle}) 拉取失败: ${e.message}`);
+    return { kol, items: [], error: e.message };
+  }
+}
+
+async function refreshXKol(force = false) {
+  const now = Date.now();
+  if (!force && now - (xKolCache.lastRefresh || 0) < X_REFRESH_INTERVAL && xKolCache.items.length > 0) {
+    return xKolCache;
+  }
+  console.log(`[X] 开始刷新 ${X_KOLS.length} 位 KOL...`);
+  const results = [];
+  for (let i = 0; i < X_KOLS.length; i += X_CONCURRENCY) {
+    const batch = X_KOLS.slice(i, i + X_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(k => fetchXKol(k)));
+    results.push(...batchResults);
+  }
+  let allItems = [];
+  const status = results.map(r => ({
+    handle: r.kol.handle,
+    name: r.kol.name,
+    role: r.kol.role,
+    count: r.items.length,
+    error: r.error,
+  }));
+  results.forEach(r => { allItems = allItems.concat(r.items); });
+  allItems.sort((a, b) => b.pubDate - a.pubDate);
+  xKolCache = { lastRefresh: now, items: allItems, status };
+  writeXKolCache();
+  const ok = status.filter(s => !s.error).length;
+  console.log(`[X] 刷新完成，共 ${allItems.length} 条发言（${ok}/${X_KOLS.length} 位 KOL 成功）`);
+  return xKolCache;
+}
+
+readXKolCache();
+refreshXKol();
+setInterval(() => refreshXKol(), X_REFRESH_INTERVAL);
+
+app.get('/api/news/x', (req, res) => {
+  res.json(xKolCache);
+});
+
+app.post('/api/news/x/refresh', async (req, res) => {
+  try {
+    const cache = await refreshXKol(true);
+    res.json({ ok: true, total: cache.items.length, lastRefresh: cache.lastRefresh });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== X KOL 模块 结束 ====================
+
+// ==================== YouTube · AI 科技访谈模块（每日08:00抓取20条，按日期沉淀） ====================
+const YOUTUBE_DAILY_DIR = path.join(DATA_DIR, 'youtube-videos');
+const YOUTUBE_DAILY_INDEX = path.join(YOUTUBE_DAILY_DIR, 'index.json');
+const YT_DAILY_TOP_N = 20;
+const YT_FETCH_TIMEOUT = 20000;
+const YT_CONCURRENCY = 4;
+
+function ensureYoutubeDir() {
+  if (!fs.existsSync(YOUTUBE_DAILY_DIR)) fs.mkdirSync(YOUTUBE_DAILY_DIR, { recursive: true });
+  if (!fs.existsSync(YOUTUBE_DAILY_INDEX)) fs.writeFileSync(YOUTUBE_DAILY_INDEX, '[]');
+}
+
+function readYoutubeIndex() {
+  try { return readJSON(YOUTUBE_DAILY_INDEX); } catch { return []; }
+}
+
+// 频道配置：channel_id 已通过抓取 YouTube 官方 RSS 校准（5/6 验证可用）。
+// AI Explained 任务给的 ID 为 23 字符且 RSS 404，置占位 TODO，待校准真实 24 字符 channel_id。
+const YT_CHANNELS = [
+  { id: 'UCbfYPyITQ-7l4upoX8nvctg', name: 'Two Minute Papers' },     // 已校准 ✓
+  { id: 'UCZHmQk67mSJgfCCTn7xBfew', name: 'Yannic Kilcher' },        // 已校准 ✓
+  { id: 'UCYO_jab_esuFRV4b17AJtAw', name: '3Blue1Brown' },           // 已校准 ✓
+  { id: 'UCSHZKyawb77ixDdsGog4iWA', name: 'Lex Fridman Podcast' },   // 已校准 ✓
+  { id: 'UCLB7AzTwc6VFZrBsO2ucBMg', name: 'Robert Miles AI Safety' },// 已校准 ✓
+  { id: 'UC_PLACEHOLDER_AIEXPLAINED', name: 'AI Explained', todo: true }, // TODO: 校准 channel_id（任务原 ID UCuckBgY6pE__DQ0DHuIIY 为 23 字符且 RSS 404）
+];
+
+// 用正则从 YouTube RSS XML 提取 entry，避免 rss-parser 命名空间(media:/yt:)字段问题
+function parseYtFeed(xml, channel) {
+  const items = [];
+  // 频道名：优先取 feed 根 <title>，否则用配置名
+  const feedTitleMatch = xml.match(/<title[^>]*>([^<]+)<\/title>/);
+  const channelName = (feedTitleMatch && feedTitleMatch[1] && feedTitleMatch[1].trim()) || channel.name;
+
+  const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
+  let m;
+  while ((m = entryRe.exec(xml)) !== null) {
+    const e = m[1];
+    const pick = (re) => {
+      const r = e.match(re);
+      return r ? r[1].trim() : '';
+    };
+    const videoId = pick(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+    if (!videoId) continue;
+    let title = pick(/<media:title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/media:title>/);
+    if (!title) title = pick(/<title[^>]*>([^<]+)<\/title>/);
+    let desc = pick(/<media:description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/media:description>/);
+    const link = pick(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/) || `https://www.youtube.com/watch?v=${videoId}`;
+    const thumb = pick(/<media:thumbnail[^>]*url=["']([^"']+)["']/) || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+    const published = pick(/<published>([^<]+)<\/published>/);
+    const views = pick(/<media:statistics[^>]*views=["'](\d+)["']/);
+    const pubAt = new Date(published).getTime();
+    items.push({
+      channelId: channel.id,
+      channelName,
+      videoId,
+      title: title.slice(0, 300),
+      description: (desc || '').slice(0, 500),
+      thumbnail: thumb,
+      published: isNaN(pubAt) ? Date.now() : pubAt,
+      publishedStr: new Date(isNaN(pubAt) ? Date.now() : pubAt).toISOString(),
+      link,
+      views: views ? Number(views) : null,
+    });
+  }
+  return items;
+}
+
+async function fetchYtChannel(channel) {
+  try {
+    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`;
+    const raw = await fetchSourceRaw(url, YT_FETCH_TIMEOUT);
+    const cleaned = cleanXmlBody(raw);
+    const items = parseYtFeed(cleaned, channel).slice(0, 15);
+    return { channel, items, error: null };
+  } catch (e) {
+    console.warn(`[YouTube] ${channel.name}(${channel.id}) 拉取失败: ${e.message}`);
+    return { channel, items: [], error: e.message };
+  }
+}
+
+// 每日抓取：合并所有频道最新视频，按发布时间排序取前 20 条，按日期沉淀
+async function captureDailyYoutube(force = false) {
+  ensureYoutubeDir();
+  const date = dateStrOf(new Date());
+  const file = path.join(YOUTUBE_DAILY_DIR, `${date}.json`);
+  if (fs.existsSync(file) && !force) {
+    console.log('[YouTube] 今日已抓取，跳过（如需强制请用 force）');
+    return readJSON(file);
+  }
+  console.log(`[YouTube] 开始抓取 ${date} 最新 ${YT_DAILY_TOP_N} 条视频...`);
+  const results = [];
+  for (let i = 0; i < YT_CHANNELS.length; i += YT_CONCURRENCY) {
+    const batch = YT_CHANNELS.slice(i, i + YT_CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(c => fetchYtChannel(c)));
+    results.push(...batchResults);
+  }
+  let allItems = [];
+  const status = results.map(r => ({
+    channelId: r.channel.id,
+    name: r.channel.name,
+    count: r.items.length,
+    error: r.error,
+    todo: r.channel.todo || false,
+  }));
+  results.forEach(r => { allItems = allItems.concat(r.items); });
+  allItems.sort((a, b) => b.published - a.published);
+  const items = allItems.slice(0, YT_DAILY_TOP_N).map((it, i) => ({ rank: i + 1, ...it }));
+
+  const payload = {
+    date,
+    capturedAt: new Date().toISOString(),
+    count: items.length,
+    status,
+    items,
+  };
+  writeJSON(file, payload);
+
+  // 更新索引（按日期倒序）
+  let index = readYoutubeIndex().filter(x => x.date !== date);
+  index.unshift({ date, count: items.length, capturedAt: payload.capturedAt });
+  index.sort((a, b) => b.date.localeCompare(a.date));
+  writeJSON(YOUTUBE_DAILY_INDEX, index);
+  const ok = status.filter(s => !s.error).length;
+  console.log(`[YouTube] 抓取完成，共 ${items.length} 条视频（${ok}/${YT_CHANNELS.length} 个频道成功），已沉淀至 ${file}`);
+  return payload;
+}
+
+// 每日 08:00 定时任务（与 GitHub 同一时间）
+function scheduleDailyYoutubeCapture() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(8, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const delay = next - now;
+  console.log(`[YouTube] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
+  setTimeout(() => {
+    captureDailyYoutube().catch(e => console.error('[YouTube] 定时抓取失败:', e.message));
+    setInterval(() => {
+      captureDailyYoutube().catch(e => console.error('[YouTube] 定时抓取失败:', e.message));
+    }, 24 * 60 * 60 * 1000);
+  }, delay);
+}
+
+ensureYoutubeDir();
+// 启动时: 如果一条历史数据都没有，先抓一次保证页面可用；否则只调度 08:00
+if (readYoutubeIndex().length === 0) {
+  captureDailyYoutube().catch(e => console.error('[YouTube] 首次抓取失败:', e.message));
+}
+scheduleDailyYoutubeCapture();
+
+// 日期列表（左侧导航）
+app.get('/api/youtube/daily', (req, res) => {
+  res.json({ dates: readYoutubeIndex() });
+});
+
+// 最新一天
+app.get('/api/youtube/daily/latest', (req, res) => {
+  const index = readYoutubeIndex();
+  if (index.length === 0) return res.status(404).json({ error: '暂无数据' });
+  const date = index[0].date;
+  const file = path.join(YOUTUBE_DAILY_DIR, `${date}.json`);
+  try { res.json(readJSON(file)); } catch { res.status(404).json({ error: '数据文件缺失' }); }
+});
+
+// 指定日期
+app.get('/api/youtube/daily/:date', (req, res) => {
+  const { date } = req.params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  const file = path.join(YOUTUBE_DAILY_DIR, `${date}.json`);
+  if (!fs.existsSync(file)) return res.status(404).json({ error: '该日期无数据' });
+  res.json(readJSON(file));
+});
+
+// 手动立即抓取（强制覆盖今日）
+app.post('/api/youtube/daily/refresh', async (req, res) => {
+  try {
+    const payload = await captureDailyYoutube(true);
+    res.json({ ok: true, date: payload.date, count: payload.count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== YouTube 模块 结束 ====================
 
 app.listen(PORT, () => {
   console.log(`GourdSprite 运行在 http://localhost:${PORT}`);

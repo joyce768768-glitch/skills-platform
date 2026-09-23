@@ -54,19 +54,23 @@ function renderKanban() {
 
       let actionsHtml = '<div class="kb-card-actions">';
       if (item.status === 'idea') {
-        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">在Trae打开</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">Trae</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editKanbanPrompt('${item.id}')">编辑</button>`;
         actionsHtml += `<button class="kb-card-btn danger" onclick="deleteKanbanItem('${item.id}')">🗑️</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('trae','${item.id}')">详情</button>`;
       } else if (item.status === 'todo') {
         actionsHtml += `<button class="kb-card-btn primary" onclick="startKanbanItem('${item.id}')">执行</button>`;
-        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">在Trae打开</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">Trae</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editKanbanPrompt('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('trae','${item.id}')">详情</button>`;
       } else if (item.status === 'doing') {
-        actionsHtml += `<button class="kb-card-btn primary" onclick="reopenKanban('${item.id}')">在Trae打开</button>`;
+        actionsHtml += `<button class="kb-card-btn primary" onclick="reopenKanban('${item.id}')">Trae</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="completeKanbanItem('${item.id}')">完成</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('trae','${item.id}')">详情</button>`;
       } else if (item.status === 'done') {
-        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">在Trae打开</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="reopenKanban('${item.id}')">Trae</button>`;
         actionsHtml += `<button class="kb-card-btn primary" onclick="pushGithub('${item.id}')">push github</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('trae','${item.id}')">详情</button>`;
       }
       actionsHtml += '</div>';
 
@@ -406,6 +410,7 @@ function switchTab(tab) {
     t.classList.toggle('active', t.dataset.tab === tab);
   });
   document.getElementById('kbPanelTrae').classList.toggle('active', tab === 'trae');
+  document.getElementById('kbPanelDeepseek').classList.toggle('active', tab === 'deepseek');
   document.getElementById('kbPanelAntigravity').classList.toggle('active', tab === 'antigravity');
   document.getElementById('kbPanelVscode').classList.toggle('active', tab === 'vscode');
   document.getElementById('kbPanelDoubao').classList.toggle('active', tab === 'doubao');
@@ -416,7 +421,7 @@ function switchTab(tab) {
   const autoBtnAg = document.getElementById('autoExecBtnAg');
   const autoBtnVs = document.getElementById('autoExecBtnVs');
 
-  if (tab === 'doubao') {
+  if (tab === 'doubao' || tab === 'deepseek') {
     syncBtn.style.display = 'none';
     openDirBtn.style.display = 'none';
   } else {
@@ -436,6 +441,7 @@ function switchTab(tab) {
 // Init: load kanban on page load
 loadKanban();
 loadDoubaoKanban();
+loadDeepSeekKanban();
 loadAntigravityKanban();
 loadVscodeKanban();
 switchTab('trae');
@@ -491,21 +497,25 @@ function renderDoubaoKanban() {
         actionsHtml += `<button class="kb-card-btn" onclick="openDoubaoUrl('${item.id}')">在豆包打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editDoubaoItem('${item.id}')">编辑</button>`;
         actionsHtml += `<button class="kb-card-btn danger" onclick="deleteDoubaoItem('${item.id}')">🗑️</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('doubao','${item.id}')">详情</button>`;
       } else if (item.status === 'todo') {
         if (item.doubaoUrl) {
           actionsHtml += `<button class="kb-card-btn" onclick="openDoubaoUrl('${item.id}')">在豆包打开</button>`;
         }
         actionsHtml += `<button class="kb-card-btn" onclick="editDoubaoItem('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('doubao','${item.id}')">详情</button>`;
       } else if (item.status === 'doing') {
         if (item.doubaoUrl) {
           actionsHtml += `<button class="kb-card-btn" onclick="openDoubaoUrl('${item.id}')">在豆包打开</button>`;
         }
         if (item.prompt) actionsHtml += `<button class="kb-card-btn" onclick="copyDoubaoPrompt('${item.id}')">📋 复制提示词</button>`;
         actionsHtml += `<button class="kb-card-btn primary" onclick="completeDoubaoItem('${item.id}')">完成</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('doubao','${item.id}')">详情</button>`;
       } else if (item.status === 'done') {
         if (item.doubaoUrl) {
           actionsHtml += `<button class="kb-card-btn" onclick="openDoubaoUrl('${item.id}')">在豆包打开</button>`;
         }
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('doubao','${item.id}')">详情</button>`;
       }
       actionsHtml += '</div>';
 
@@ -707,6 +717,261 @@ async function deleteDoubaoItem(id) {
   }
 }
 
+// ===== DeepSeek Kanban =====
+let deepseekItems = [];
+
+async function loadDeepSeekKanban() {
+  try {
+    const res = await fetch('/api/workbench/kanban-deepseek');
+    deepseekItems = await res.json();
+    renderDeepSeekKanban();
+  } catch {
+    showToast('加载 DeepSeek 看板失败', 'error');
+  }
+}
+
+function renderDeepSeekKanban() {
+  const statuses = ['idea', 'todo', 'doing', 'done'];
+  const labels = { idea: 'dsCountIdea', todo: 'dsCountTodo', doing: 'dsCountDoing', done: 'dsCountDone' };
+  const lists = { idea: 'dsListIdea', todo: 'dsListTodo', doing: 'dsListDoing', done: 'dsListDone' };
+
+  statuses.forEach(status => {
+    const items = deepseekItems.filter(i => i.status === status);
+    document.getElementById(labels[status]).textContent = items.length;
+    const container = document.getElementById(lists[status]);
+    container.innerHTML = '';
+
+    if (items.length === 0) {
+      container.innerHTML = '<div class="kb-empty">暂无项目</div>';
+      return;
+    }
+
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'kb-card';
+      card.draggable = true;
+      card.dataset.id = item.id;
+      card.dataset.source = 'deepseek';
+
+      let summaryHtml = '';
+      if (item.summary) summaryHtml = `<div class="kb-card-summary">📝 ${escapeHtml(item.summary)}</div>`;
+
+      let promptHtml = '';
+      if (item.prompt) promptHtml = `<div class="kb-card-prompt">💬 ${escapeHtml(item.prompt)}</div>`;
+
+      let actionsHtml = '<div class="kb-card-actions">';
+      if (item.status === 'idea') {
+        actionsHtml += `<button class="kb-card-btn" onclick="openDeepSeekUrl('${item.id}')">DeepSeek</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="editDeepSeekItem('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn danger" onclick="deleteDeepSeekItem('${item.id}')">🗑️</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('deepseek','${item.id}')">详情</button>`;
+      } else if (item.status === 'todo') {
+        if (item.deepseekUrl) actionsHtml += `<button class="kb-card-btn" onclick="openDeepSeekUrl('${item.id}')">DeepSeek</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="editDeepSeekItem('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('deepseek','${item.id}')">详情</button>`;
+      } else if (item.status === 'doing') {
+        if (item.deepseekUrl) actionsHtml += `<button class="kb-card-btn" onclick="openDeepSeekUrl('${item.id}')">DeepSeek</button>`;
+        if (item.prompt) actionsHtml += `<button class="kb-card-btn" onclick="copyDeepSeekPrompt('${item.id}')">📋 复制提示词</button>`;
+        actionsHtml += `<button class="kb-card-btn primary" onclick="completeDeepSeekItem('${item.id}')">完成</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('deepseek','${item.id}')">详情</button>`;
+      } else if (item.status === 'done') {
+        if (item.deepseekUrl) actionsHtml += `<button class="kb-card-btn" onclick="openDeepSeekUrl('${item.id}')">DeepSeek</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('deepseek','${item.id}')">详情</button>`;
+      }
+      actionsHtml += '</div>';
+
+      const descText = item.description || '';
+      card.innerHTML = `
+        <div class="kb-card-name">${escapeHtml(item.name)}</div>
+        ${descText ? `<div class="kb-card-desc">${escapeHtml(descText)}</div>` : ''}
+        ${summaryHtml}
+        ${promptHtml}
+        ${actionsHtml}
+      `;
+
+      card.addEventListener('dragstart', (e) => {
+        card.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', 'deepseek:' + item.id);
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+      });
+
+      container.appendChild(card);
+    });
+  });
+
+  // DeepSeek drop zones
+  document.querySelectorAll('#kbPanelDeepseek .kb-card-list').forEach(list => {
+    list.addEventListener('dragover', (e) => { e.preventDefault(); list.classList.add('drag-over'); });
+    list.addEventListener('dragleave', () => { list.classList.remove('drag-over'); });
+    list.addEventListener('drop', (e) => {
+      e.preventDefault();
+      list.classList.remove('drag-over');
+      const raw = e.dataTransfer.getData('text/plain');
+      if (!raw || !raw.startsWith('deepseek:')) return;
+      const id = raw.slice('deepseek:'.length);
+      const newStatus = list.closest('.kb-column').dataset.status;
+      changeDeepSeekStatus(id, newStatus);
+    });
+  });
+}
+
+// DeepSeek modal
+let dsmMode = 'create';
+let dsmEditingId = null;
+
+function showDeepSeekForm() {
+  dsmMode = 'create';
+  dsmEditingId = null;
+  document.getElementById('dsmTitle').textContent = '创建 DeepSeek 项目';
+  document.getElementById('dsmId').value = '';
+  document.getElementById('dsmName').value = '';
+  document.getElementById('dsmDesc').value = '';
+  document.getElementById('dsmUrl').value = '';
+  document.getElementById('dsmSummary').value = '';
+  document.getElementById('dsmPrompt').value = '';
+  document.getElementById('deepseekModal').style.display = 'flex';
+  document.getElementById('dsmName').focus();
+}
+
+function closeDeepSeekModal() {
+  document.getElementById('deepseekModal').style.display = 'none';
+}
+
+async function confirmDeepSeekModal() {
+  const name = document.getElementById('dsmName').value.trim();
+  if (!name) return showToast('请输入标题', 'error');
+  const description = document.getElementById('dsmDesc').value.trim();
+  const deepseekUrl = document.getElementById('dsmUrl').value.trim();
+  const summary = document.getElementById('dsmSummary').value.trim();
+  const prompt = document.getElementById('dsmPrompt').value.trim();
+  const payload = { name, description, deepseekUrl, summary, prompt };
+  try {
+    if (dsmMode === 'create') {
+      const res = await fetch('/api/workbench/kanban-deepseek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) return showToast(data.error || '创建失败', 'error');
+      closeDeepSeekModal();
+      await loadDeepSeekKanban();
+      showToast('DeepSeek 项目已创建');
+    } else {
+      const res = await fetch(`/api/workbench/kanban-deepseek/${dsmEditingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        return showToast(err.error || '保存失败', 'error');
+      }
+      closeDeepSeekModal();
+      await loadDeepSeekKanban();
+      showToast('已保存');
+    }
+  } catch {
+    showToast('操作失败', 'error');
+  }
+}
+
+function editDeepSeekItem(id) {
+  const item = deepseekItems.find(i => i.id === id);
+  if (!item) return;
+  dsmMode = 'edit';
+  dsmEditingId = id;
+  document.getElementById('dsmTitle').textContent = '编辑 DeepSeek 项目';
+  document.getElementById('dsmId').value = item.id;
+  document.getElementById('dsmName').value = item.name;
+  document.getElementById('dsmDesc').value = item.description || '';
+  document.getElementById('dsmUrl').value = item.deepseekUrl || '';
+  document.getElementById('dsmSummary').value = item.summary || '';
+  document.getElementById('dsmPrompt').value = item.prompt || '';
+  document.getElementById('deepseekModal').style.display = 'flex';
+  document.getElementById('dsmName').focus();
+}
+
+async function changeDeepSeekStatus(id, newStatus) {
+  const item = deepseekItems.find(i => i.id === id);
+  if (!item || item.status === newStatus) return;
+  if (newStatus === 'doing') return startDeepSeekItem(id);
+  try {
+    const res = await fetch(`/api/workbench/kanban-deepseek/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      return showToast(err.error || '操作失败', 'error');
+    }
+    await loadDeepSeekKanban();
+  } catch {
+    showToast('操作失败', 'error');
+  }
+}
+
+async function startDeepSeekItem(id) {
+  try {
+    const res = await fetch(`/api/workbench/kanban-deepseek/${id}/start`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return showToast(data.error || '启动失败', 'error');
+    await loadDeepSeekKanban();
+    const item = deepseekItems.find(i => i.id === id);
+    if (item && item.prompt) {
+      showToast('已打开 DeepSeek,提示词已复制到剪贴板');
+    } else {
+      showToast('已打开 DeepSeek');
+    }
+  } catch {
+    showToast('启动失败', 'error');
+  }
+}
+
+async function openDeepSeekUrl(id) {
+  const item = deepseekItems.find(i => i.id === id);
+  if (!item) return showToast('项目不存在', 'error');
+  try {
+    const res = await fetch(`/api/workbench/kanban-deepseek/${id}/open`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) return showToast(data.error || '打开失败', 'error');
+    showToast('已打开 DeepSeek,标题已复制');
+  } catch {
+    showToast('打开失败', 'error');
+  }
+}
+
+async function copyDeepSeekPrompt(id) {
+  const item = deepseekItems.find(i => i.id === id);
+  if (!item || !item.prompt) return showToast('无提示词', 'error');
+  try {
+    await navigator.clipboard.writeText(item.prompt);
+    showToast('提示词已复制');
+  } catch {
+    showToast('复制失败,请手动选择', 'error');
+  }
+}
+
+async function completeDeepSeekItem(id) {
+  await changeDeepSeekStatus(id, 'done');
+}
+
+async function deleteDeepSeekItem(id) {
+  const item = deepseekItems.find(i => i.id === id);
+  if (!item) return;
+  if (!confirm(`确定删除 DeepSeek 项目「${item.name}」吗？`)) return;
+  try {
+    await fetch(`/api/workbench/kanban-deepseek/${id}`, { method: 'DELETE' });
+    await loadDeepSeekKanban();
+    showToast('已删除');
+  } catch {
+    showToast('删除失败', 'error');
+  }
+}
+
 // ===== Antigravity Kanban =====
 let antigravityItems = [];
 
@@ -763,16 +1028,20 @@ function renderAntigravityKanban() {
         actionsHtml += `<button class="kb-card-btn" onclick="openAntigravityItem('${item.id}')">在Antigravity打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editAntigravityItem('${item.id}')">编辑</button>`;
         actionsHtml += `<button class="kb-card-btn danger" onclick="deleteAntigravityItem('${item.id}')">🗑️</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('antigravity','${item.id}')">详情</button>`;
       } else if (item.status === 'todo') {
         actionsHtml += `<button class="kb-card-btn primary" onclick="startAntigravityItem('${item.id}')">执行</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="openAntigravityItem('${item.id}')">在Antigravity打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editAntigravityItem('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('antigravity','${item.id}')">详情</button>`;
       } else if (item.status === 'doing') {
         actionsHtml += `<button class="kb-card-btn primary" onclick="openAntigravityItem('${item.id}')">在Antigravity打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="completeAntigravityItem('${item.id}')">完成</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('antigravity','${item.id}')">详情</button>`;
       } else if (item.status === 'done') {
         actionsHtml += `<button class="kb-card-btn" onclick="openAntigravityItem('${item.id}')">在Antigravity打开</button>`;
         actionsHtml += `<button class="kb-card-btn primary" onclick="pushGithubAg('${item.id}')">push github</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('antigravity','${item.id}')">详情</button>`;
       }
       actionsHtml += '</div>';
 
@@ -1069,16 +1338,20 @@ function renderVscodeKanban() {
         actionsHtml += `<button class="kb-card-btn" onclick="openVscodeItem('${item.id}')">在VSCode打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editVscodeItem('${item.id}')">编辑</button>`;
         actionsHtml += `<button class="kb-card-btn danger" onclick="deleteVscodeItem('${item.id}')">🗑️</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('vscode','${item.id}')">详情</button>`;
       } else if (item.status === 'todo') {
         actionsHtml += `<button class="kb-card-btn primary" onclick="startVscodeItem('${item.id}')">执行</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="openVscodeItem('${item.id}')">在VSCode打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="editVscodeItem('${item.id}')">编辑</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('vscode','${item.id}')">详情</button>`;
       } else if (item.status === 'doing') {
         actionsHtml += `<button class="kb-card-btn primary" onclick="openVscodeItem('${item.id}')">在VSCode打开</button>`;
         actionsHtml += `<button class="kb-card-btn" onclick="completeVscodeItem('${item.id}')">完成</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('vscode','${item.id}')">详情</button>`;
       } else if (item.status === 'done') {
         actionsHtml += `<button class="kb-card-btn" onclick="openVscodeItem('${item.id}')">在VSCode打开</button>`;
         actionsHtml += `<button class="kb-card-btn primary" onclick="pushGithubVs('${item.id}')">push github</button>`;
+        actionsHtml += `<button class="kb-card-btn" onclick="showDetail('vscode','${item.id}')">详情</button>`;
       }
       actionsHtml += '</div>';
 
@@ -1370,4 +1643,167 @@ async function openCurrentDir() {
   } catch {
     showToast('打开失败', 'error');
   }
+}
+
+// ===== Project Detail View (二级页面) =====
+let detailState = { tool: null, id: null };
+let detailDirty = false;
+let detailScrollHandler = null;
+
+const DETAIL_SECTIONS = ['background', 'marketAnalysis', 'competitiveAnalysis', 'userAnalysis', 'businessModel', 'specification'];
+
+const TOOL_LABELS = {
+  trae: 'Trae',
+  doubao: '豆包',
+  deepseek: 'DeepSeek',
+  antigravity: 'Antigravity',
+  vscode: 'VSCode'
+};
+
+const STATUS_LABELS = {
+  idea: '构想',
+  todo: '待办',
+  doing: '执行中',
+  done: '已完成'
+};
+
+function getDetailItem(tool, id) {
+  if (tool === 'trae') return kanbanItems.find(i => i.id === id);
+  if (tool === 'doubao') return doubaoItems.find(i => i.id === id);
+  if (tool === 'deepseek') return deepseekItems.find(i => i.id === id);
+  if (tool === 'antigravity') return antigravityItems.find(i => i.id === id);
+  if (tool === 'vscode') return vscodeItems.find(i => i.id === id);
+  return null;
+}
+
+function showDetail(tool, id) {
+  const item = getDetailItem(tool, id);
+  if (!item) return showToast('项目不存在', 'error');
+  detailState = { tool, id };
+  detailDirty = false;
+
+  const toolLabel = TOOL_LABELS[tool] || tool;
+  const statusLabel = STATUS_LABELS[item.status] || item.status;
+
+  document.getElementById('kbContainer').style.display = 'none';
+  document.getElementById('detailView').style.display = 'block';
+  document.getElementById('detailView').scrollTop = 0;
+
+  // Reset tabs
+  document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  const firstTab = document.querySelector('.detail-tab[data-section="background"]');
+  if (firstTab) firstTab.classList.add('active');
+
+  document.getElementById('detailToolBadge').textContent = toolLabel;
+  document.getElementById('detailStatusBadge').textContent = statusLabel;
+  document.getElementById('detailName').value = item.name || '';
+  document.getElementById('detailDesc').value = item.description || '';
+  document.getElementById('detailId').textContent = item.id || '';
+  document.getElementById('detailCreatedAt').textContent = item.createdAt || '';
+
+  fetch(`/api/workbench/kanban-detail/${tool}/${id}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('detailBackground').value = data.background || '';
+      document.getElementById('detailMarketAnalysis').value = data.marketAnalysis || '';
+      document.getElementById('detailCompetitiveAnalysis').value = data.competitiveAnalysis || '';
+      document.getElementById('detailUserAnalysis').value = data.userAnalysis || '';
+      document.getElementById('detailBusinessModel').value = data.businessModel || '';
+      document.getElementById('detailSpecification').value = data.specification || '';
+    })
+    .catch(() => {
+      showToast('加载详情失败', 'error');
+    });
+
+  ['detailName','detailDesc','detailBackground','detailMarketAnalysis',
+   'detailCompetitiveAnalysis','detailUserAnalysis','detailBusinessModel','detailSpecification']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => { detailDirty = true; });
+    });
+
+  // Add scroll listener for tab activation
+  if (detailScrollHandler) {
+    document.getElementById('detailView').removeEventListener('scroll', detailScrollHandler);
+  }
+  detailScrollHandler = updateActiveTabOnScroll;
+  document.getElementById('detailView').addEventListener('scroll', detailScrollHandler);
+}
+
+function scrollToSection(sectionId) {
+  const section = document.getElementById(`section-${sectionId}`);
+  const view = document.getElementById('detailView');
+  if (section && view) {
+    view.scrollTo({ top: section.offsetTop - 130, behavior: 'smooth' });
+  }
+  // Update active tab
+  document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.querySelector(`.detail-tab[data-section="${sectionId}"]`);
+  if (tab) tab.classList.add('active');
+}
+
+function updateActiveTabOnScroll() {
+  const view = document.getElementById('detailView');
+  if (!view) return;
+  const scrollPos = view.scrollTop + 160;
+  let currentSection = DETAIL_SECTIONS[0];
+  for (const sectionId of DETAIL_SECTIONS) {
+    const section = document.getElementById(`section-${sectionId}`);
+    if (section && section.offsetTop <= scrollPos) {
+      currentSection = sectionId;
+    }
+  }
+  document.querySelectorAll('.detail-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.querySelector(`.detail-tab[data-section="${currentSection}"]`);
+  if (tab) tab.classList.add('active');
+}
+
+async function saveDetailView() {
+  const { tool, id } = detailState;
+  if (!tool || !id) return;
+  const payload = {
+    name: document.getElementById('detailName').value.trim(),
+    description: document.getElementById('detailDesc').value.trim(),
+    background: document.getElementById('detailBackground').value,
+    marketAnalysis: document.getElementById('detailMarketAnalysis').value,
+    competitiveAnalysis: document.getElementById('detailCompetitiveAnalysis').value,
+    userAnalysis: document.getElementById('detailUserAnalysis').value,
+    businessModel: document.getElementById('detailBusinessModel').value,
+    specification: document.getElementById('detailSpecification').value
+  };
+  try {
+    const res = await fetch(`/api/workbench/kanban-detail/${tool}/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      return showToast(err.error || '保存失败', 'error');
+    }
+    detailDirty = false;
+    showToast('已保存');
+    await loadKanban();
+    if (tool === 'doubao') await loadDoubaoKanban();
+    else if (tool === 'antigravity') await loadAntigravityKanban();
+    else if (tool === 'vscode') await loadVscodeKanban();
+  } catch {
+    showToast('保存失败', 'error');
+  }
+}
+
+function closeDetailView() {
+  if (detailDirty) {
+    if (!confirm('有未保存的修改，确定返回吗？')) return;
+  }
+  // Remove scroll listener
+  if (detailScrollHandler) {
+    const view = document.getElementById('detailView');
+    if (view) view.removeEventListener('scroll', detailScrollHandler);
+    detailScrollHandler = null;
+  }
+  document.getElementById('detailView').style.display = 'none';
+  document.getElementById('kbContainer').style.display = '';
+  detailState = { tool: null, id: null };
+  detailDirty = false;
 }
