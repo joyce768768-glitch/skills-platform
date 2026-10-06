@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const { spawn } = require('child_process');
 const { URL } = require('url');
 const { Octokit } = require('@octokit/rest');
 
@@ -3512,20 +3513,39 @@ function scheduleDailyCapture() {
   const delay = next - now;
   console.log(`[GitHub] 下次定时抓取: ${next.toLocaleString('zh-CN')}`);
   setTimeout(() => {
-    captureDailyTrending().catch(e => console.error('[GitHub] 定时抓取失败:', e.message));
+    ensureTodayTrending('定时');
     captureStarSnapshot().catch(e => console.error('[Star快照] 定时抓取失败:', e.message));
     setInterval(() => {
-      captureDailyTrending().catch(e => console.error('[GitHub] 定时抓取失败:', e.message));
+      ensureTodayTrending('定时');
       captureStarSnapshot().catch(e => console.error('[Star快照] 定时抓取失败:', e.message));
     }, 24 * 60 * 60 * 1000);
   }, delay);
 }
 
-ensureTrendingDir();
-// 启动时: 如果一条历史数据都没有，先抓一次保证页面可用；否则只调度 08:00
-if (readTrendingIndex().length === 0) {
-  captureDailyTrending().catch(e => console.error('[GitHub] 首次抓取失败:', e.message));
+// 抓取失败自动重试: 今日数据缺失时每 30 分钟重试一次（匿名配额每小时重置）, 成功或已有数据即停止
+const TRENDING_RETRY_INTERVAL = 30 * 60 * 1000;
+let trendingRetryTimer = null;
+
+function ensureTodayTrending(source) {
+  const todayFile = () => path.join(GITHUB_TRENDING_DIR, `${dateStrOf(new Date())}.json`);
+  if (fs.existsSync(todayFile())) return; // 今日已有数据
+  if (trendingRetryTimer) return; // 重试已在排队
+  const attempt = async () => {
+    trendingRetryTimer = null;
+    if (fs.existsSync(todayFile())) return;
+    try {
+      await captureDailyTrending().then(() => generateDailyVideo());
+    } catch (e) {
+      console.error(`[GitHub] ${source}抓取失败: ${e.message}，30 分钟后自动重试`);
+      trendingRetryTimer = setTimeout(attempt, TRENDING_RETRY_INTERVAL);
+    }
+  };
+  attempt();
 }
+
+ensureTrendingDir();
+// 启动时: 今日数据缺失则补抓(失败自动重试), 覆盖"08:00 抓取失败后服务重启"的场景
+ensureTodayTrending('启动补抓');
 // 启动即补一次今日快照,保证从今天起积累 star 快照
 captureStarSnapshot().catch(e => console.error('[Star快照] 首次快照失败:', e.message));
 scheduleDailyCapture();
@@ -3560,6 +3580,70 @@ app.post('/api/github/trending/refresh', async (req, res) => {
     res.json({ ok: true, date: payload.date, count: payload.count });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ==================== GitHub 日榜视频生成（调用 data-video-template 管线） ====================
+const VIDEO_PROJECT_DIR = process.env.VIDEO_PROJECT_DIR || '/Users/moon/Trae/shipinjianji研究/data-video-template';
+const VIDEO_JOB_FILE = path.join(VIDEO_PROJECT_DIR, 'assets', 'video-job.json');
+let videoChild = null; // 当前正在跑的管线进程（互斥锁）
+
+function readVideoJob() {
+  try { return readJSON(VIDEO_JOB_FILE); } catch { return null; }
+}
+
+// 启动管线子进程；已有任务在跑则返回 false
+function startVideoPipeline(date) {
+  const job = readVideoJob();
+  if (videoChild || (job && job.state === 'running')) return false;
+  const args = [path.join(VIDEO_PROJECT_DIR, 'tools', 'generate-video.mjs')];
+  if (date) args.push('--date', date);
+  videoChild = spawn('node', args, {
+    cwd: VIDEO_PROJECT_DIR,
+    env: process.env,
+    stdio: ['ignore', 'ignore', 'ignore'],
+    detached: false,
+  });
+  videoChild.on('exit', () => { videoChild = null; });
+  videoChild.on('error', () => { videoChild = null; });
+  console.log(`[视频] 管线已启动 ${date || '(最新日期)'}`);
+  return true;
+}
+
+// 08:00 抓取完成后自动出片（失败只记日志，不影响抓取）
+function generateDailyVideo() {
+  if (!startVideoPipeline(null)) console.log('[视频] 已有任务在跑，跳过本次自动生成');
+}
+
+app.post('/api/github/video/generate', (req, res) => {
+  const date = (req.query.date || '').trim() || null;
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+  if (date && !fs.existsSync(path.join(GITHUB_TRENDING_DIR, `${date}.json`))) {
+    return res.status(404).json({ error: `该日期无抓取数据: ${date}` });
+  }
+  if (!startVideoPipeline(date)) return res.status(409).json({ error: '已有视频任务在渲染中，请等待完成' });
+  res.json({ ok: true, date: date || 'latest' });
+});
+
+app.get('/api/github/video/status', (req, res) => {
+  const job = readVideoJob();
+  if (!job || !job.state) return res.json({ state: 'idle' });
+  // 兜底：job 文件停在 running 但进程已消失超过 30 分钟，视为异常中断
+  if (job.state === 'running' && !videoChild && job.updatedAt) {
+    const ageMin = (Date.now() - new Date(job.updatedAt).getTime()) / 60000;
+    if (ageMin > 30) return res.json({ ...job, state: 'error', error: `任务中断（${Math.round(ageMin)} 分钟无进度更新）` });
+  }
+  res.json(job);
+});
+
+// 已生成的成片列表
+app.get('/api/github/video/list', (req, res) => {
+  const dir = path.join(__dirname, 'public', 'videos', 'github-daily');
+  try {
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.mp4')).sort().reverse();
+    res.json({ videos: files.map((f) => ({ date: f.replace('.mp4', ''), url: `/videos/github-daily/${f}` })) });
+  } catch {
+    res.json({ videos: [] });
   }
 });
 
@@ -3811,9 +3895,14 @@ app.post('/api/news/x/refresh', async (req, res) => {
 // ==================== YouTube · AI 科技访谈模块（每日08:00抓取20条，按日期沉淀） ====================
 const YOUTUBE_DAILY_DIR = path.join(DATA_DIR, 'youtube-videos');
 const YOUTUBE_DAILY_INDEX = path.join(YOUTUBE_DAILY_DIR, 'index.json');
+const YT_VIEWS_SNAPSHOT = path.join(YOUTUBE_DAILY_DIR, 'views-snapshot.json');
+const YT_RANKED_HISTORY = path.join(YOUTUBE_DAILY_DIR, 'ranked-history.json');
 const YT_DAILY_TOP_N = 20;
 const YT_FETCH_TIMEOUT = 20000;
-const YT_CONCURRENCY = 4;
+// 并发 2 + 批间停顿: 22 个频道高频拉 RSS 会触发 YouTube 限流(间歇 404/超时)
+const YT_CONCURRENCY = 2;
+// 只保留近 7 天发布的视频（时效窗口, 与 B站规则对齐）
+const YT_RECENT_DAYS = 7;
 
 function ensureYoutubeDir() {
   if (!fs.existsSync(YOUTUBE_DAILY_DIR)) fs.mkdirSync(YOUTUBE_DAILY_DIR, { recursive: true });
@@ -3824,15 +3913,35 @@ function readYoutubeIndex() {
   try { return readJSON(YOUTUBE_DAILY_INDEX); } catch { return []; }
 }
 
-// 频道配置：channel_id 已通过抓取 YouTube 官方 RSS 校准（5/6 验证可用）。
-// AI Explained 任务给的 ID 为 23 字符且 RSS 404，置占位 TODO，待校准真实 24 字符 channel_id。
+// 频道池：22 个前沿科技频道, 覆盖 AI / 生命·脑科学 / 空间物理 / 前沿综合。
+// channel_id 来源: 原配置校准 + RSS 实测验证; 个别频道拉取失败不影响整体(按 status 容错)。
 const YT_CHANNELS = [
-  { id: 'UCbfYPyITQ-7l4upoX8nvctg', name: 'Two Minute Papers' },     // 已校准 ✓
-  { id: 'UCZHmQk67mSJgfCCTn7xBfew', name: 'Yannic Kilcher' },        // 已校准 ✓
-  { id: 'UCYO_jab_esuFRV4b17AJtAw', name: '3Blue1Brown' },           // 已校准 ✓
-  { id: 'UCSHZKyawb77ixDdsGog4iWA', name: 'Lex Fridman Podcast' },   // 已校准 ✓
-  { id: 'UCLB7AzTwc6VFZrBsO2ucBMg', name: 'Robert Miles AI Safety' },// 已校准 ✓
-  { id: 'UC_PLACEHOLDER_AIEXPLAINED', name: 'AI Explained', todo: true }, // TODO: 校准 channel_id（任务原 ID UCuckBgY6pE__DQ0DHuIIY 为 23 字符且 RSS 404）
+  // ===== AI 核心 =====
+  { id: 'UCbfYPyITQ-7l4upoX8nvctg', name: 'Two Minute Papers', cat: 'AI' },
+  { id: 'UCHmD-oSpV0sNfAUnpYpj8KA', name: 'Yannic Kilcher', cat: 'AI' },
+  { id: 'UCYO_jab_esuFRV4b17AJtAw', name: '3Blue1Brown', cat: 'AI' },
+  { id: 'UCSHZKyawb77ixDdsGog4iWA', name: 'Lex Fridman Podcast', cat: 'AI' },
+  { id: 'UCLB7AzTwc6VFZrBsO2ucBMg', name: 'Robert Miles AI Safety', cat: 'AI' },
+  { id: 'UCP476PBVW4uHsHH2oAdlyUw', name: 'AI Explained', cat: 'AI' },
+  { id: 'UCXJBgSX9Yvecg0rT-Rr4lJg', name: 'Andrej Karpathy', cat: 'AI' },
+  { id: 'UCdZjQi9TeX5t4wxJ0LcFkVw', name: 'Matt Berman', cat: 'AI' },
+  { id: 'UCsBjURrPoezykLs9EqgamOA', name: 'Fireship', cat: 'AI' },
+  { id: 'UCKWaEZ-_VweaEx1j62do_vQ', name: 'IBM Technology', cat: 'AI' },
+  // ===== 生命科学 / 脑科学 =====
+  { id: 'UCsXVk37bltHxD1rDPwtNM8Q', name: 'Kurzgesagt', cat: '生命科学' },
+  { id: 'UC2D2CMWXMOVWx7giW1n3LIg', name: 'Huberman Lab', cat: '脑科学' },
+  { id: 'UCZ6X-r5bAYroWTeo3UR8ibA', name: 'SciShow', cat: '生命科学' },
+  { id: 'UC8u2RkZcYL3dwaYD1kaHrBg', name: 'AsapSCIENCE', cat: '生命科学' },
+  // ===== 空间物理 / 工程 =====
+  { id: 'UCZxONnr3HsxS7Q5dpvKHN1w', name: 'Everyday Astronaut', cat: '空间物理' },
+  { id: 'UCyfLx2KMxaX7ic6Q9Bk_CAg', name: 'Scott Manley', cat: '空间物理' },
+  { id: 'UC7_gfk_Qs4XfvJvvR0cQFAA', name: 'PBS Space Time', cat: '空间物理' },
+  { id: 'UCtYhpp_1MAiGFKn3MTp3SX1', name: 'Sixty Symbols', cat: '空间物理' },
+  { id: 'UC06YmppL_88p4Y8j9feVvWg', name: 'Wendover Productions', cat: '前沿工程' },
+  { id: 'UCRA25szG1X-QC7GX5qC-nDg', name: 'Practical Engineering', cat: '前沿工程' },
+  // ===== 前沿综合 =====
+  { id: 'UCFWxWgc32ZerIQ0mi6fYRvg', name: 'Veritasium', cat: '前沿综合' },
+  { id: 'UCY6D9W-wcuO63X7yUU1k99w', name: 'SmarterEveryDay', cat: '前沿综合' },
 ];
 
 // 用正则从 YouTube RSS XML 提取 entry，避免 rss-parser 命名空间(media:/yt:)字段问题
@@ -3856,6 +3965,8 @@ function parseYtFeed(xml, channel) {
     if (!title) title = pick(/<title[^>]*>([^<]+)<\/title>/);
     let desc = pick(/<media:description[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/media:description>/);
     const link = pick(/<link[^>]*rel=["']alternate["'][^>]*href=["']([^"']+)["']/) || `https://www.youtube.com/watch?v=${videoId}`;
+    // 过滤 Shorts(竖屏短视频), 只保留 PC 端横屏长视频
+    if (link.includes('/shorts/')) continue;
     const thumb = pick(/<media:thumbnail[^>]*url=["']([^"']+)["']/) || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
     const published = pick(/<published>([^<]+)<\/published>/);
     const views = pick(/<media:statistics[^>]*views=["'](\d+)["']/);
@@ -3863,6 +3974,7 @@ function parseYtFeed(xml, channel) {
     items.push({
       channelId: channel.id,
       channelName,
+      category: channel.cat || '',
       videoId,
       title: title.slice(0, 300),
       description: (desc || '').slice(0, 500),
@@ -3877,19 +3989,70 @@ function parseYtFeed(xml, channel) {
 }
 
 async function fetchYtChannel(channel) {
-  try {
-    const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`;
-    const raw = await fetchSourceRaw(url, YT_FETCH_TIMEOUT);
-    const cleaned = cleanXmlBody(raw);
-    const items = parseYtFeed(cleaned, channel).slice(0, 15);
-    return { channel, items, error: null };
-  } catch (e) {
-    console.warn(`[YouTube] ${channel.name}(${channel.id}) 拉取失败: ${e.message}`);
-    return { channel, items: [], error: e.message };
+  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channel.id}`;
+  // 重试 2 次: YouTube RSS 间歇性 404/超时(限流), 单次失败不代表频道不可用
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const raw = await fetchSourceRaw(url, YT_FETCH_TIMEOUT);
+      const cleaned = cleanXmlBody(raw);
+      const items = parseYtFeed(cleaned, channel).slice(0, 15);
+      return { channel, items, error: null };
+    } catch (e) {
+      lastErr = e.message;
+      if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+    }
   }
+  console.warn(`[YouTube] ${channel.name}(${channel.id}) 拉取失败: ${lastErr}`);
+  return { channel, items: [], error: lastErr };
 }
 
-// 每日抓取：合并所有频道最新视频，按发布时间排序取前 20 条，按日期沉淀
+// 读取 views 快照: { videoId: { views, at } }
+function readYtViewsSnapshot() {
+  try { return readJSON(YT_VIEWS_SNAPSHOT); } catch { return {}; }
+}
+
+// 写入今日 views 快照（合并更新, 只保留近 14 天数据防止无限增长）
+function writeYtViewsSnapshot(items) {
+  const snap = readYtViewsSnapshot();
+  const now = Date.now();
+  for (const it of items) {
+    if (it.views == null) continue;
+    snap[it.videoId] = { views: it.views, at: now };
+  }
+  for (const k of Object.keys(snap)) {
+    if (now - snap[k].at > 14 * 24 * 3600 * 1000) delete snap[k];
+  }
+  writeJSON(YT_VIEWS_SNAPSHOT, snap);
+}
+
+// 已上榜历史: 严格去重用（记录近 7 天进过榜单的视频）
+function readYtRankedHistory() {
+  try { return readJSON(YT_RANKED_HISTORY); } catch { return {}; }
+}
+function writeYtRankedHistory(videoIds) {
+  const history = readYtRankedHistory();
+  const now = Date.now();
+  for (const id of videoIds) history[id] = now;
+  for (const k of Object.keys(history)) {
+    if (now - history[k] > YT_RECENT_DAYS * 24 * 3600 * 1000) delete history[k];
+  }
+  writeJSON(YT_RANKED_HISTORY, history);
+}
+
+// 视频热度分: 优先用"播放量增速/小时"(与上次快照差值), 无快照回退"总播放/发布小时数"
+function ytHeatScore(item, snapshot) {
+  const ageHours = Math.max((Date.now() - item.published) / 3600000, 1);
+  const prev = snapshot[item.videoId];
+  if (prev && prev.views != null && item.views != null && prev.at < Date.now() - 60 * 1000) {
+    const dh = (Date.now() - prev.at) / 3600000;
+    const delta = item.views - prev.views;
+    if (delta > 0 && dh > 0.5) return { score: delta / dh, delta, perHour: true };
+  }
+  return { score: (item.views || 0) / ageHours, delta: null, perHour: false };
+}
+
+// 每日抓取：合并所有频道最新视频 → 近7天窗口 → 30天严格去重 → 按播放量增速排序取前 20
 async function captureDailyYoutube(force = false) {
   ensureYoutubeDir();
   const date = dateStrOf(new Date());
@@ -3898,7 +4061,7 @@ async function captureDailyYoutube(force = false) {
     console.log('[YouTube] 今日已抓取，跳过（如需强制请用 force）');
     return readJSON(file);
   }
-  console.log(`[YouTube] 开始抓取 ${date} 最新 ${YT_DAILY_TOP_N} 条视频...`);
+  console.log(`[YouTube] 开始抓取 ${date} 近 ${YT_RECENT_DAYS} 天增速最快的 ${YT_DAILY_TOP_N} 条视频...`);
   const results = [];
   for (let i = 0; i < YT_CHANNELS.length; i += YT_CONCURRENCY) {
     const batch = YT_CHANNELS.slice(i, i + YT_CONCURRENCY);
@@ -3914,14 +4077,38 @@ async function captureDailyYoutube(force = false) {
     todo: r.channel.todo || false,
   }));
   results.forEach(r => { allItems = allItems.concat(r.items); });
-  allItems.sort((a, b) => b.published - a.published);
-  const items = allItems.slice(0, YT_DAILY_TOP_N).map((it, i) => ({ rank: i + 1, ...it }));
+
+  // 更新今日 views 快照（供明日计算增速）
+  writeYtViewsSnapshot(allItems);
+
+  // 近 7 天时间窗
+  const windowStart = Date.now() - YT_RECENT_DAYS * 24 * 3600 * 1000;
+  const pool = allItems.filter(it => it.published >= windowStart);
+
+  // 严格去重: 排除近 30 天已上榜过的视频; 不足时用旧视频按热度补位
+  const history = readYtRankedHistory();
+  const fresh = pool.filter(it => !history[it.videoId]);
+  const candidates = fresh.length >= YT_DAILY_TOP_N ? fresh : pool.slice();
+
+  // 热度排序（快照已含今日 views, 先读再算）
+  const snapshot = readYtViewsSnapshot();
+  for (const it of candidates) {
+    const h = ytHeatScore(it, snapshot);
+    it.viewsPerHour = Math.round(h.score);
+    it.viewsDelta = h.delta;
+    it.heatByDelta = h.perHour;
+  }
+  candidates.sort((a, b) => b.viewsPerHour - a.viewsPerHour);
+
+  const items = candidates.slice(0, YT_DAILY_TOP_N).map((it, i) => ({ rank: i + 1, ...it }));
+  writeYtRankedHistory(items.map(it => it.videoId));
 
   const payload = {
     date,
     capturedAt: new Date().toISOString(),
     count: items.length,
     status,
+    rule: `近${YT_RECENT_DAYS}天 + 播放量增速排序 + ${YT_RECENT_DAYS}天严格去重`,
     items,
   };
   writeJSON(file, payload);
@@ -3932,7 +4119,7 @@ async function captureDailyYoutube(force = false) {
   index.sort((a, b) => b.date.localeCompare(a.date));
   writeJSON(YOUTUBE_DAILY_INDEX, index);
   const ok = status.filter(s => !s.error).length;
-  console.log(`[YouTube] 抓取完成，共 ${items.length} 条视频（${ok}/${YT_CHANNELS.length} 个频道成功），已沉淀至 ${file}`);
+  console.log(`[YouTube] 抓取完成，候选 ${allItems.length} → 近7天 ${pool.length} → 沉淀 ${items.length} 条（${ok}/${YT_CHANNELS.length} 个频道成功），已存至 ${file}`);
   return payload;
 }
 

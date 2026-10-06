@@ -228,6 +228,7 @@ const YT_STATE = {
 function renderYtVideoCard(item) {
   const desc = item.description ? `<div class="yt-desc">${escapeHtml(item.description.slice(0, 120))}${item.description.length > 120 ? '…' : ''}</div>` : '';
   const top3 = item.rank <= 3 ? ' top3' : '';
+  const heat = item.viewsPerHour ? `<span class="yt-heat">🚀 +${Number(item.viewsPerHour).toLocaleString()}/小时</span>` : '';
   return `
     <div class="yt-video-card">
       <span class="gh-rank${top3}">${item.rank}</span>
@@ -236,8 +237,8 @@ function renderYtVideoCard(item) {
       </a>
       <div class="yt-meta">
         <a class="yt-title" href="${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a>
-        <span class="yt-channel">📺 ${escapeHtml(item.channelName)}</span>
-        <span class="yt-published">${escapeHtml(formatRelativeTime(item.published || item.publishedStr))}${item.views ? ' · ' + Number(item.views).toLocaleString() + ' 次观看' : ''}</span>
+        <span class="yt-channel">📺 ${escapeHtml(item.channelName)}${item.category ? ' · ' + escapeHtml(item.category) : ''}</span>
+        <span class="yt-published">${escapeHtml(formatRelativeTime(item.published || item.publishedStr))}${item.views ? ' · ' + Number(item.views).toLocaleString() + ' 次观看' : ''} ${heat}</span>
         ${desc}
       </div>
     </div>
@@ -287,7 +288,7 @@ async function loadYtDate(date) {
   const listEl = document.getElementById('youtubeFeedList');
   const titleEl = document.getElementById('ytContentTitle');
   listEl.innerHTML = '<div class="gh-loading">正在加载 ' + date + ' 的视频...</div>';
-  titleEl.textContent = `YouTube · AI 科技访谈 · ${date}`;
+  titleEl.textContent = `YouTube · 前沿科技视频 · ${date}`;
 
   try {
     const res = await fetch(`/api/youtube/daily/${date}`);
@@ -837,6 +838,86 @@ async function refreshTrending() {
   }
 }
 
+// ================ 视频生成 ================
+let videoPollTimer = null;
+
+async function generateVideo() {
+  const btn = document.getElementById('ghVideoBtn');
+  const statusEl = document.getElementById('ghVideoStatus');
+  btn.disabled = true;
+  statusEl.className = 'gh-video-status';
+  statusEl.textContent = '启动中...';
+  try {
+    const date = GH_STATE.currentDate || '';
+    const res = await fetch('/api/github/video/generate' + (date ? `?date=${date}` : ''), { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      statusEl.className = 'gh-video-status error';
+      statusEl.textContent = data.error || '启动失败';
+      btn.disabled = false;
+      return;
+    }
+    pollVideoStatus();
+  } catch (e) {
+    statusEl.className = 'gh-video-status error';
+    statusEl.textContent = '启动失败: ' + e.message;
+    btn.disabled = false;
+  }
+}
+
+function pollVideoStatus() {
+  clearTimeout(videoPollTimer);
+  videoPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/github/video/status');
+      const job = await res.json();
+      const btn = document.getElementById('ghVideoBtn');
+      const statusEl = document.getElementById('ghVideoStatus');
+      if (job.state === 'running') {
+        statusEl.className = 'gh-video-status';
+        statusEl.textContent = `${job.step || '处理中'} ${job.progress || 0}%（渲染约需 8 分钟）`;
+        btn.disabled = true;
+      } else if (job.state === 'done') {
+        statusEl.className = 'gh-video-status';
+        statusEl.innerHTML = `✅ ${escapeHtml(job.date || '')} 成片：` +
+          `<a href="${job.videoUrl}" target="_blank" download>▶ 观看/下载</a>`;
+        btn.disabled = false;
+        clearInterval(videoPollTimer);
+        videoPollTimer = null;
+      } else if (job.state === 'error') {
+        statusEl.className = 'gh-video-status error';
+        statusEl.textContent = '❌ ' + (job.error || '生成失败');
+        btn.disabled = false;
+        clearInterval(videoPollTimer);
+        videoPollTimer = null;
+      } else {
+        btn.disabled = false;
+        clearInterval(videoPollTimer);
+        videoPollTimer = null;
+      }
+    } catch {
+      /* 服务重启等瞬时错误，下个周期再试 */
+    }
+  }, 10000);
+}
+
+// 页面加载时若有任务在跑，恢复进度显示
+(async function initVideoStatus() {
+  try {
+    const res = await fetch('/api/github/video/status');
+    const job = await res.json();
+    const statusEl = document.getElementById('ghVideoStatus');
+    if (!statusEl) return;
+    if (job.state === 'running') {
+      statusEl.textContent = `${job.step || '处理中'} ${job.progress || 0}%`;
+      pollVideoStatus();
+    } else if (job.state === 'done' && job.videoUrl) {
+      statusEl.innerHTML = `✅ ${escapeHtml(job.date || '')} 成片：` +
+        `<a href="${job.videoUrl}" target="_blank" download>▶ 观看/下载</a>`;
+    }
+  } catch { /* ignore */ }
+})();
+
 // ================ 周报归档 ================
 const GH_WEEK_STATE = {
   weeks: [],
@@ -980,6 +1061,7 @@ switchNewsTab('github');
 
 window.loadDate = loadDate;
 window.refreshTrending = refreshTrending;
+window.generateVideo = generateVideo;
 window.switchNewsTab = switchNewsTab;
 window.loadWeek = loadWeek;
 window.switchArchiveTab = switchArchiveTab;

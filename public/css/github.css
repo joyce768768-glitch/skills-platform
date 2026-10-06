@@ -292,6 +292,11 @@
   color: var(--text-tertiary);
 }
 
+.yt-heat {
+  color: #e8590c;
+  font-weight: 600;
+}
+
 .yt-desc {
   font-size: 12px;
   color: var(--text-secondary);
@@ -497,6 +502,33 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* 视频生成按钮与进度状态 */
+.gh-video-btn {
+  border-color: rgba(34, 197, 224, 0.45);
+  color: #0e7490;
+  font-weight: 600;
+}
+.gh-video-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 224, 0.08);
+}
+.gh-video-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.gh-video-status {
+  font-size: 12px;
+  color: var(--text-muted, #666);
+  max-width: 320px;
+}
+.gh-video-status a {
+  color: #0e7490;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.gh-video-status.error {
+  color: #c0392b;
 }
 
 .gh-btn-ghost {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>资讯 - GourdSprite</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="/css/github.css?v=20260923e">
+  <link rel="stylesheet" href="/css/github.css?v=20261001a">
   <script src="/js/auth.js"></script>
   <script>
     // 路由保护: 未登录在渲染前跳转,避免页面闪烁
@@ -68,7 +68,11 @@
             <h2 class="gh-content-title" id="ghContentTitle">GitHub 涨星日报</h2>
             <span class="gh-content-subtitle" id="ghContentSubtitle">每日 08:00 自动抓取最近 7 天创建、star 增长最快的 20 个项目</span>
           </div>
-          <button class="gh-refresh-btn" id="ghRefreshBtn" onclick="refreshTrending()">🔄 立即抓取</button>
+          <div class="gh-header-actions">
+            <button class="gh-refresh-btn gh-video-btn" id="ghVideoBtn" onclick="generateVideo()">🎬 视频生成</button>
+            <span class="gh-video-status" id="ghVideoStatus"></span>
+            <button class="gh-refresh-btn" id="ghRefreshBtn" onclick="refreshTrending()">🔄 立即抓取</button>
+          </div>
         </div>
         <div class="gh-repo-list" id="ghRepoList">
           <div class="gh-loading">正在加载项目...</div>
@@ -125,8 +129,8 @@
       <section class="gh-content">
         <div class="gh-content-header">
           <div class="gh-content-title-wrap">
-            <h2 class="gh-content-title" id="ytContentTitle">YouTube · AI 科技访谈</h2>
-            <span class="gh-content-subtitle" id="ytContentSubtitle">每日 08:00 自动抓取 AI 科技频道最新 20 条视频</span>
+            <h2 class="gh-content-title" id="ytContentTitle">YouTube · 前沿科技视频</h2>
+            <span class="gh-content-subtitle" id="ytContentSubtitle">每日 08:00 抓取 22 个前沿科技频道（AI/生命/脑科学/空间物理），按播放量增速排序，近 7 天不重复</span>
           </div>
           <button class="gh-refresh-btn" id="ytRefreshBtn" onclick="refreshYoutubeDaily()">🔄 立即抓取</button>
         </div>
@@ -253,6 +257,6 @@
     </div>
   </main>
 
-  <script src="/js/github.js?v=20260923f"></script>
+  <script src="/js/github.js?v=20261001a"></script>
 </body>
 </html>
